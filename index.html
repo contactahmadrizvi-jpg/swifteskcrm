@@ -490,6 +490,23 @@
         </div>
     </div>
 
+    <!-- Data Loading Overlay -->
+    <div id="data-loader" class="fixed inset-0 z-[90] bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm hidden flex flex-col items-center justify-center gap-4 transition-opacity duration-300">
+        <div class="relative w-16 h-16">
+            <svg class="animate-spin w-16 h-16 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+                <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+                <i class="fa-solid fa-database text-primary-500 text-lg"></i>
+            </div>
+        </div>
+        <div class="text-center">
+            <p class="text-base font-semibold text-gray-800 dark:text-white">Loading your CRM data...</p>
+            <p id="data-loader-status" class="text-xs text-gray-500 dark:text-gray-400 mt-1">Connecting to Firestore</p>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-[70] flex flex-col gap-2 pointer-events-none"></div>
 
@@ -700,11 +717,12 @@
                     currentUser = user;
                     document.getElementById('user-display-email').innerText = user.email || 'User';
                     hideLoginOverlay();
+                    // initFirestoreSync will call navigate() once all data is ready
                     initFirestoreSync();
-                    navigate(currentView || 'dashboard');
                 } else {
                     currentUser = null;
                     stopFirestoreSync();
+                    hideDataLoader();
                     showLoginOverlay();
                 }
             });
@@ -1055,10 +1073,46 @@
         }
 
         // --- Firestore Realtime Synchronization ---
+        let _collectionsReady = new Set();
+        let _initialLoadDone = false;
+        let _loaderSafetyTimer = null;
+
+        function showDataLoader(msg) {
+            const el = document.getElementById('data-loader');
+            const st = document.getElementById('data-loader-status');
+            if (!el) return;
+            if (st) st.innerText = msg || 'Connecting to Firestore';
+            el.classList.remove('hidden', 'opacity-0');
+            el.classList.add('opacity-100');
+        }
+
+        function hideDataLoader() {
+            const el = document.getElementById('data-loader');
+            if (!el) return;
+            el.classList.remove('opacity-100');
+            el.classList.add('opacity-0');
+            setTimeout(() => el.classList.add('hidden'), 300);
+        }
+
         function initFirestoreSync() {
             if (!db || !currentUser) return;
 
-            stopFirestoreSync(); // Clean up existing listeners
+            stopFirestoreSync();
+            _collectionsReady.clear();
+            _initialLoadDone = false;
+
+            showDataLoader('Connecting to Firestore...');
+
+            // Safety valve: if Firestore takes more than 8s, show the app anyway
+            if (_loaderSafetyTimer) clearTimeout(_loaderSafetyTimer);
+            _loaderSafetyTimer = setTimeout(() => {
+                if (!_initialLoadDone) {
+                    console.warn('Firestore initial load timed out — showing app anyway');
+                    _initialLoadDone = true;
+                    hideDataLoader();
+                    navigate(currentView || 'dashboard');
+                }
+            }, 8000);
 
             COLLECTIONS.forEach(colName => {
                 const unsub = db.collection('users').doc(currentUser.uid).collection(colName)
@@ -1068,7 +1122,7 @@
                             items.push({ id: doc.id, ...doc.data() });
                         });
 
-                        // Sort by order ascending if available, then by created or date
+                        // Sort by order ascending if available, then by created
                         items.sort((a, b) => {
                             if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
                             if (a.order !== undefined) return -1;
@@ -1078,13 +1132,31 @@
 
                         appData[colName] = items;
 
-                        // Re-render UI dynamically
-                        if (currentView === colName) {
-                            renderTableData(colName);
-                        } else if (currentView === 'pipeline' && colName === 'leads') {
-                            renderPipeline();
-                        } else if (currentView === 'dashboard') {
-                            renderDashboard();
+                        // Track first-load: mark this collection as ready
+                        if (!_collectionsReady.has(colName)) {
+                            _collectionsReady.add(colName);
+                            const loaded = _collectionsReady.size;
+                            const total = COLLECTIONS.length;
+                            const st = document.getElementById('data-loader-status');
+                            if (st) st.innerText = `Loading data... (${loaded}/${total})`;
+
+                            // All collections received their first snapshot → show the app
+                            if (loaded === total && !_initialLoadDone) {
+                                _initialLoadDone = true;
+                                if (_loaderSafetyTimer) clearTimeout(_loaderSafetyTimer);
+                                hideDataLoader();
+                                renderNavigation();
+                                navigate(currentView || 'dashboard');
+                            }
+                        } else {
+                            // Subsequent real-time updates — re-render the active view
+                            if (currentView === colName) {
+                                renderTableData(colName);
+                            } else if (currentView === 'pipeline' && colName === 'leads') {
+                                renderPipeline();
+                            } else if (currentView === 'dashboard') {
+                                renderDashboard();
+                            }
                         }
 
                         // Check follow-up alarm every time followups sync
@@ -1094,6 +1166,16 @@
                     }, err => {
                         console.error(`Firestore sync error on ${colName}:`, err);
                         showToast(`Sync error on ${colName}: ${err.message}`, 'error');
+                        // Don't block the loader forever on error — mark it ready
+                        if (!_collectionsReady.has(colName)) {
+                            _collectionsReady.add(colName);
+                            if (_collectionsReady.size === COLLECTIONS.length && !_initialLoadDone) {
+                                _initialLoadDone = true;
+                                if (_loaderSafetyTimer) clearTimeout(_loaderSafetyTimer);
+                                hideDataLoader();
+                                navigate(currentView || 'dashboard');
+                            }
+                        }
                     });
 
                 firestoreUnsubscribers.push(unsub);
@@ -1102,7 +1184,7 @@
             // Also check every 5 minutes (in case tab is left open all day)
             if (_followupAlarmInterval) clearInterval(_followupAlarmInterval);
             _followupAlarmInterval = setInterval(() => {
-                _followupNotifiedToday = null; // reset so a new check can fire
+                _followupNotifiedToday = null;
                 checkTodayFollowups();
             }, 5 * 60 * 1000);
         }
