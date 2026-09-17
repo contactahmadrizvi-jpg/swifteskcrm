@@ -622,7 +622,7 @@
 
         // --- Constants & Config ---
         const APP_VERSION = '2.0';
-        const COLLECTIONS = ['leads', 'followups', 'notes', 'questions', 'scripts', 'rebuttals', 'closing', 'pricing', 'niches', 'demo'];
+        const COLLECTIONS = ['leads', 'followups', 'notes', 'questions', 'scripts', 'rebuttals', 'closing', 'pricing', 'niches', 'demo', 'passwords'];
         
         const PIPELINE_STAGES = [
             { id: 'new', label: 'New Lead', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800' },
@@ -655,7 +655,9 @@
             { type: 'divider', label: 'Resources' },
             { id: 'pricing', icon: 'fa-tags', label: 'Pricing' },
             { id: 'niches', icon: 'fa-book-open', label: 'Niche Playbooks' },
-            { id: 'demo', icon: 'fa-desktop', label: 'Demo Info' }
+            { id: 'demo', icon: 'fa-desktop', label: 'Demo Info' },
+            { type: 'divider', label: 'Security' },
+            { id: 'passwords', icon: 'fa-key', label: 'Passwords' }
         ];
 
         // --- State Management ---
@@ -669,7 +671,8 @@
             closing: [],
             pricing: [],
             niches: [],
-            demo: []
+            demo: [],
+            passwords: []
         };
         
         let currentView = 'dashboard';
@@ -712,6 +715,67 @@
             tmp.innerHTML = html;
             return (tmp.textContent || tmp.innerText || '').trim();
         };
+
+        // Clipboard copy helper with feedback
+        function copyToClipboard(text, msg = 'Copied to clipboard!') {
+            if (!text) return;
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(msg, 'success');
+                }).catch(() => {
+                    fallbackCopyToClipboard(text, msg);
+                });
+            } else {
+                fallbackCopyToClipboard(text, msg);
+            }
+        }
+
+        function fallbackCopyToClipboard(text, msg) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.top = '0';
+            ta.style.left = '0';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showToast(msg, 'success');
+            } catch (err) {
+                showToast('Failed to copy to clipboard', 'error');
+            }
+            document.body.removeChild(ta);
+        }
+
+        function togglePasswordVisibility(id, actualPassword) {
+            const textEl = document.getElementById(`pwd-val-${id}`);
+            const iconEl = document.getElementById(`pwd-icon-${id}`);
+            if (!textEl) return;
+            if (textEl.dataset.revealed === 'true') {
+                textEl.innerText = '••••••••';
+                textEl.dataset.revealed = 'false';
+                if (iconEl) iconEl.className = 'fa-solid fa-eye text-xs';
+            } else {
+                textEl.innerText = actualPassword;
+                textEl.dataset.revealed = 'true';
+                if (iconEl) iconEl.className = 'fa-solid fa-eye-slash text-xs';
+            }
+        }
+
+        function toggleFormPassword(fieldId) {
+            const input = document.getElementById(fieldId);
+            const icon = document.getElementById(`${fieldId}-toggle-icon`);
+            if (!input) return;
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (icon) icon.className = 'fa-solid fa-eye-slash text-sm';
+            } else {
+                input.type = 'password';
+                if (icon) icon.className = 'fa-solid fa-eye text-sm';
+            }
+        }
 
         // --- Authentication Logic ---
         function setupAuthObserver() {
@@ -1788,6 +1852,55 @@
                     <td class="px-4 py-3"><a href="${escapeHtml(item.link || '#')}" target="_blank" class="text-blue-500 hover:underline" onclick="event.stopPropagation()">${escapeHtml(item.link || '-')} <i class="fa-solid fa-external-link-alt text-[10px]"></i></a></td>
                     <td class="px-4 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">${escapeHtml(item.credentials || '')}</td>
                 `
+            },
+            passwords: {
+                title: 'Password Vault', subtitle: 'Store and manage platform logins, email/phone, and passwords • Drag rows to reorder', addBtn: 'Add Password',
+                columns: ['Platform Name', 'Email / Phone', 'Password', 'Notes'],
+                renderRow: (item) => {
+                    const pwd = item.password || '';
+                    const safePwd = escapeHtml(pwd);
+                    const safeEmailOrPhone = escapeHtml(item.emailOrPhone || item.email || item.phone || '-');
+                    const safePlatform = escapeHtml(item.platform || item.name || item.title || 'Platform');
+                    const safeNotes = escapeHtml(item.notes || '');
+                    const website = item.websiteUrl || item.website || item.link || '';
+                    return `
+                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                                    <i class="fa-solid fa-key"></i>
+                                </div>
+                                <div>
+                                    <span class="font-bold text-gray-900 dark:text-white">${safePlatform}</span>
+                                    ${website ? `<br><a href="${escapeHtml(website)}" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-500 hover:underline inline-flex items-center gap-1 mt-0.5" onclick="event.stopPropagation()"><i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>Open</a>` : ''}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-gray-700 dark:text-gray-300 font-mono text-sm">
+                            <div class="flex items-center gap-2">
+                                <span>${safeEmailOrPhone}</span>
+                                ${item.emailOrPhone ? `
+                                    <button onclick="event.stopPropagation(); copyToClipboard('${escapeHtml(item.emailOrPhone)}', 'Email / Phone copied!')" class="p-1 rounded text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Copy Email / Phone">
+                                        <i class="fa-regular fa-copy text-xs"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 font-mono text-sm">
+                            <div class="flex items-center gap-2">
+                                <span id="pwd-val-${item.id}" data-revealed="false" class="text-gray-700 dark:text-gray-300 tracking-wider">••••••••</span>
+                                <button onclick="event.stopPropagation(); togglePasswordVisibility('${item.id}', '${safePwd}')" class="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Toggle visibility">
+                                    <i id="pwd-icon-${item.id}" class="fa-solid fa-eye text-xs"></i>
+                                </button>
+                                <button onclick="event.stopPropagation(); copyToClipboard('${safePwd}', 'Password copied!')" class="p-1 rounded text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Copy Password">
+                                    <i class="fa-regular fa-copy text-xs"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs truncate max-w-xs" title="${safeNotes}">
+                            ${safeNotes || '<span class="text-gray-400 italic">-</span>'}
+                        </td>
+                    `;
+                }
             }
         };
 
@@ -2059,6 +2172,13 @@
                 { id: 'link', label: 'Demo URL', type: 'url', width: 'full' },
                 { id: 'credentials', label: 'Login Credentials / Details', type: 'textarea', width: 'full', rows: 3 },
                 { id: 'script', label: 'Demo Flow / Script', type: 'textarea', width: 'full', rows: 4 }
+            ],
+            passwords: [
+                { id: 'platform', label: 'Platform / Service Name', type: 'text', required: true, width: 'full', placeholder: 'e.g., Google, Facebook, AWS, Twitter, GitHub, CRM, Bank...' },
+                { id: 'emailOrPhone', label: 'Email or Phone', type: 'text', required: true, width: 'half', placeholder: 'e.g., user@email.com or +1234567890' },
+                { id: 'password', label: 'Password', type: 'password', required: true, width: 'half', placeholder: 'Enter login password' },
+                { id: 'websiteUrl', label: 'Website / Login URL (Optional)', type: 'url', width: 'full', placeholder: 'https://...' },
+                { id: 'notes', label: 'Security Notes / Recovery Info (Optional)', type: 'textarea', width: 'full', rows: 3, placeholder: '2FA notes, PIN, security questions, or notes...' }
             ]
         };
 
@@ -2094,6 +2214,15 @@
                 if (field.type === 'textarea' || field.type === 'text') {
                     const heightClass = field.type === 'textarea' ? 'min-h-[100px] max-h-64' : 'min-h-[42px] max-h-[150px]';
                     formHtml += `<div id="${field.id}" name="${field.id}" contenteditable="true" class="${inputClasses} ${heightClass} overflow-y-auto whitespace-pre-wrap cursor-text leading-relaxed" ${req} placeholder="${field.placeholder||''}">${value}</div>`;
+                } else if (field.type === 'password') {
+                    formHtml += `
+                        <div class="relative">
+                            <input type="password" id="${field.id}" name="${field.id}" value="${escapeHtml(value)}" class="${inputClasses} pr-10 font-mono" ${req} placeholder="${field.placeholder||''}" autocomplete="new-password">
+                            <button type="button" onclick="toggleFormPassword('${field.id}')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors" title="Toggle visibility">
+                                <i id="${field.id}-toggle-icon" class="fa-solid fa-eye text-sm"></i>
+                            </button>
+                        </div>
+                    `;
                 } else if (field.type === 'select') {
                     const opts = typeof field.options === 'function' ? field.options() : field.options;
                     formHtml += `<select id="${field.id}" name="${field.id}" class="${inputClasses}" ${req}>`;
@@ -2394,7 +2523,8 @@
                         closing: [],
                         pricing: [],
                         niches: [],
-                        demo: []
+                        demo: [],
+                        passwords: []
                     };
 
                     // Alias dictionary for flexible mapping
@@ -2429,7 +2559,13 @@
                         'niche': 'niches',
                         'playbooks': 'niches',
                         'demo': 'demo',
-                        'demos': 'demo'
+                        'demos': 'demo',
+                        'passwords': 'passwords',
+                        'password': 'passwords',
+                        'vault': 'passwords',
+                        'credentials': 'passwords',
+                        'logins': 'passwords',
+                        'login': 'passwords'
                     };
 
                     // Case A: Imported is a single Array of records directly
@@ -2445,6 +2581,7 @@
                         else if ('scenario' in sample) detectedCol = 'closing';
                         else if ('plan' in sample || 'price' in sample) detectedCol = 'pricing';
                         else if ('persona' in sample || 'niche' in sample) detectedCol = 'niches';
+                        else if ('password' in sample || 'platform' in sample || 'emailOrPhone' in sample) detectedCol = 'passwords';
                         else if ('credentials' in sample) detectedCol = 'demo';
                         else if ('date' in sample && 'time' in sample) detectedCol = 'followups';
                         else if ('content' in sample && !('title' in sample)) detectedCol = 'notes';
@@ -2486,6 +2623,7 @@
                             if (colName === 'leads' && !item.stage) item.stage = 'new';
                             if (colName === 'followups' && !item.status) item.status = 'pending';
                             if (colName === 'notes') item.content = item.content || item.notes || '';
+                            if (colName === 'passwords' && !item.platform && (item.name || item.title)) item.platform = item.name || item.title;
                             return item;
                         });
 
