@@ -613,6 +613,9 @@
                 firebase.initializeApp(FIREBASE_CONFIG);
                 auth = firebase.auth();
                 db = firebase.firestore();
+                db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+                    console.warn("Firestore offline persistence notice:", err.code);
+                });
             } catch (err) {
                 console.error("Firebase init failed:", err);
             }
@@ -1443,14 +1446,21 @@
 
         async function saveToFirestore(collectionName, item) {
             if (!db || !currentUser) {
-                showToast("Database not available or user not logged in", "error");
+                console.warn("Database not available or user not logged in");
                 return;
             }
             try {
-                await db.collection('users').doc(currentUser.uid).collection(collectionName).doc(item.id).set(item, { merge: true });
+                // Sanitize undefined fields to prevent Firestore serialization errors
+                const cleanItem = JSON.parse(JSON.stringify(item));
+                const writePromise = db.collection('users').doc(currentUser.uid).collection(collectionName).doc(item.id).set(cleanItem, { merge: true });
+                const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 5000));
+                const res = await Promise.race([writePromise, timeoutPromise]);
+                if (res === 'timeout') {
+                    console.warn(`Firestore write for ${collectionName}/${item.id} took longer than 5s, queued locally.`);
+                }
             } catch (err) {
                 console.error(`Error saving to ${collectionName}:`, err);
-                showToast(`Failed to save: ${err.message}`, "error");
+                showToast(`Sync failed: ${err.message}`, "error");
                 throw err;
             }
         }
@@ -1458,7 +1468,12 @@
         async function deleteFromFirestore(collectionName, id) {
             if (!db || !currentUser) return;
             try {
-                await db.collection('users').doc(currentUser.uid).collection(collectionName).doc(id).delete();
+                const delPromise = db.collection('users').doc(currentUser.uid).collection(collectionName).doc(id).delete();
+                const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 5000));
+                const res = await Promise.race([delPromise, timeoutPromise]);
+                if (res === 'timeout') {
+                    console.warn(`Firestore delete for ${collectionName}/${id} took longer than 5s, queued locally.`);
+                }
             } catch (err) {
                 console.error(`Error deleting from ${collectionName}:`, err);
                 showToast(`Failed to delete: ${err.message}`, "error");
@@ -1476,7 +1491,9 @@
                     const docRef = colRef.doc(item.id);
                     batch.set(docRef, { order: index }, { merge: true });
                 });
-                await batch.commit();
+                const batchPromise = batch.commit();
+                const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 5000));
+                await Promise.race([batchPromise, timeoutPromise]);
             } catch (err) {
                 console.error("Batch order update failed:", err);
                 showToast("Failed to save reordered positions", "error");
@@ -2338,7 +2355,11 @@
             form.innerHTML = formHtml;
 
             const saveBtn = document.getElementById('modal-save-btn');
-            saveBtn.onclick = saveModalData;
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Save';
+                saveBtn.onclick = saveModalData;
+            }
 
             modal.classList.remove('hidden');
             void modal.offsetWidth;
@@ -2353,6 +2374,12 @@
             contentBox.classList.remove('scale-100', 'opacity-100');
             contentBox.classList.add('scale-95', 'opacity-0');
             
+            const saveBtn = document.getElementById('modal-save-btn');
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Save';
+            }
+
             setTimeout(() => {
                 modal.classList.add('hidden');
                 document.getElementById('dynamic-form').reset();
@@ -2387,14 +2414,14 @@
                 return;
             }
 
-            // Immediately disable to prevent double-click / duplicate writes
+            // Immediately disable to prevent double-click
             if (saveBtn) {
                 saveBtn.disabled = true;
                 saveBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Saving...';
             }
 
             let itemData = currentEditingId 
-                ? (appData[currentModalView].find(i => i.id === currentEditingId) || { id: currentEditingId })
+                ? { ...(appData[currentModalView].find(i => i.id === currentEditingId) || { id: currentEditingId }) }
                 : { 
                     id: generateId(), 
                     created: new Date().toISOString(),
@@ -2411,13 +2438,43 @@
             if(currentModalView === 'leads' && !currentEditingId && !itemData.stage) itemData.stage = 'new';
             if(currentModalView === 'followups' && !currentEditingId && !itemData.status) itemData.status = 'pending';
 
+            // Optimistic local state update so the user immediately sees the change without waiting
+            if (currentEditingId) {
+                const existingIdx = appData[currentModalView].findIndex(i => i.id === currentEditingId);
+                if (existingIdx !== -1) {
+                    appData[currentModalView][existingIdx] = itemData;
+                } else {
+                    appData[currentModalView].push(itemData);
+                }
+            } else {
+                const existingIdx = appData[currentModalView].findIndex(i => i.id === itemData.id);
+                if (existingIdx === -1) {
+                    appData[currentModalView].push(itemData);
+                }
+            }
+
+            // Immediately re-render active view
+            if (currentView === currentModalView) {
+                renderTableData(currentModalView);
+            } else if (currentView === 'pipeline' && currentModalView === 'leads') {
+                renderPipeline();
+            } else if (currentView === 'dashboard') {
+                renderDashboard();
+            }
+            if (currentModalView === 'followups') {
+                checkDueFollowups();
+            }
+
+            // Close modal right away
+            closeModal();
+            showToast('Saved successfully!', 'success');
+
+            // Persist to Firestore with error handling in background
             try {
                 await saveToFirestore(currentModalView, itemData);
-                closeModal();
-                showToast('Saved to Firestore successfully!', 'success');
             } catch (err) {
-                showToast('Failed to save to Firestore', 'error');
-                // Re-enable so user can retry
+                console.error('Background sync failed:', err);
+            } finally {
                 if (saveBtn) {
                     saveBtn.disabled = false;
                     saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Save';
@@ -2466,7 +2523,6 @@
         async function confirmDelete() {
             if (!itemToDelete) return;
 
-            // Immediately disable confirm button to prevent double-delete
             const actionBtn = document.getElementById('confirm-action-btn');
             if (actionBtn) {
                 actionBtn.disabled = true;
@@ -2474,23 +2530,40 @@
             }
             
             const { viewId, id } = itemToDelete;
-            
+
+            // Optimistically remove from appData
+            if (appData[viewId]) {
+                appData[viewId] = appData[viewId].filter(item => item.id !== id);
+            }
+            let linkedFollowups = [];
+            if (viewId === 'leads') {
+                linkedFollowups = appData.followups.filter(f => f.refId === id);
+                appData.followups = appData.followups.filter(f => f.refId !== id);
+            }
+
+            // Immediately re-render active view
+            if (currentView === viewId) {
+                renderTableData(viewId);
+            } else if (currentView === 'pipeline' && viewId === 'leads') {
+                renderPipeline();
+            } else if (currentView === 'dashboard') {
+                renderDashboard();
+            }
+            if (viewId === 'followups' || viewId === 'leads') {
+                checkDueFollowups();
+            }
+
+            closeConfirm();
+            showToast('Item deleted', 'info');
+
             try {
                 await deleteFromFirestore(viewId, id);
-
-                // Cleanup related follow-ups if lead is deleted
-                if (viewId === 'leads') {
-                    const linkedFollowups = appData.followups.filter(f => f.refId === id);
-                    for (const f of linkedFollowups) {
-                        await deleteFromFirestore('followups', f.id);
-                    }
+                for (const f of linkedFollowups) {
+                    await deleteFromFirestore('followups', f.id);
                 }
-
-                closeConfirm();
-                showToast('Deleted from Firestore', 'info');
             } catch (err) {
-                showToast('Delete failed: ' + err.message, 'error');
-                // Re-enable so user can retry
+                console.error("Delete sync error:", err);
+            } finally {
                 if (actionBtn) {
                     actionBtn.disabled = false;
                     actionBtn.innerHTML = 'Delete';
