@@ -1,0 +1,1995 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swiftesk CRM</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Firebase Compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Secure Credentials from env.js -->
+    <script src="env.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* light: bg-gray-100 */
+            color: #1f2937; /* light: text-gray-800 */
+            transition: background-color 0.3s, color 0.3s;
+            overflow: hidden; /* App-like feel, scroll inside main area */
+        }
+        
+        .dark body {
+            background-color: #111827; /* dark: bg-gray-900 */
+            color: #f9fafb; /* dark: text-gray-50 */
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #475569; 
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+
+        /* Kanban Board Specifics */
+        .kanban-column {
+            min-height: calc(100vh - 250px);
+        }
+        .kanban-card.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+        .kanban-column.drag-over {
+            background-color: rgba(59, 130, 246, 0.1);
+            border: 2px dashed #3b82f6;
+        }
+
+        /* Content Editable / Rich Text Styles */
+        [contenteditable="true"]:empty:before {
+            content: attr(placeholder);
+            color: #9ca3af;
+            pointer-events: none;
+            display: block;
+        }
+        .dark [contenteditable="true"]:empty:before {
+            color: #6b7280;
+        }
+        [contenteditable="true"] {
+            outline: none;
+        }
+
+        /* Utility for hiding elements */
+        .hidden-view {
+            display: none !important;
+        }
+
+        /* Drag handle cursor */
+        .drag-handle {
+            cursor: grab;
+        }
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+
+        .table-row-dragging {
+            opacity: 0.4;
+            background-color: rgba(59, 130, 246, 0.1) !important;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col md:flex-row antialiased relative">
+
+    <!-- ==================== LOGIN SCREEN OVERLAY ==================== -->
+    <div id="login-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-md transition-all duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-md border border-gray-200/70 dark:border-gray-700/70 m-4 relative overflow-hidden">
+            <!-- Brand Badge -->
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-tr from-primary-600 to-blue-400 text-white rounded-2xl shadow-lg mb-3">
+                    <i class="fa-solid fa-bolt text-2xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Swiftesk CRM</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Sign in with your authorized credentials</p>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="space-y-4" onsubmit="handleLogin(event)">
+                <div>
+                    <label for="login-email" class="block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-1.5">Email Address</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                            <i class="fa-regular fa-envelope"></i>
+                        </span>
+                        <input type="email" id="login-email" required placeholder="admin@swiftesk.com" class="w-full pl-10 pr-3.5 py-2.5 bg-gray-50 dark:bg-gray-700/60 border border-gray-300 dark:border-gray-600 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="login-password" class="block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-1.5">Password</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                            <i class="fa-solid fa-lock"></i>
+                        </span>
+                        <input type="password" id="login-password" required placeholder="••••••••" class="w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-gray-700/60 border border-gray-300 dark:border-gray-600 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors">
+                        <button type="button" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <i id="password-toggle-icon" class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Error Box -->
+                <div id="login-error" class="hidden p-3 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-xs text-red-600 dark:text-red-400 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-exclamation flex-shrink-0"></i>
+                    <span id="login-error-text">Invalid email or password.</span>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" id="login-submit-btn" class="w-full py-2.5 px-4 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-semibold rounded-xl transition-all shadow-md shadow-primary-500/20 flex items-center justify-center gap-2 mt-2">
+                    <span id="login-btn-text">Sign In</span>
+                    <i id="login-btn-spinner" class="fa-solid fa-circle-notch fa-spin hidden"></i>
+                </button>
+            </form>
+
+            <div class="mt-6 pt-5 border-t border-gray-100 dark:border-gray-700/60 text-center">
+                <p class="text-xs text-gray-500 dark:text-gray-400 flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-shield-halved text-primary-500"></i>
+                    <span>Authorized access only • Contact administrator</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MAIN APPLICATION ==================== -->
+    <header class="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center z-20 shadow-sm flex-shrink-0">
+        <div class="flex items-center gap-2 text-primary-600 dark:text-primary-500 font-bold text-xl">
+            <i class="fa-solid fa-chart-line"></i> Swiftesk CRM
+        </div>
+        <button id="mobile-menu-btn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-2 focus:outline-none">
+            <i class="fa-solid fa-bars text-xl"></i>
+        </button>
+    </header>
+
+    <aside id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-transform duration-300 ease-in-out z-30 h-full">
+        <!-- Logo Area -->
+        <div class="hidden md:flex items-center gap-3 p-6 border-b border-gray-200 dark:border-gray-700">
+            <div class="bg-primary-600 text-white p-2 rounded-lg">
+                <i class="fa-solid fa-bolt"></i>
+            </div>
+            <span class="font-bold text-xl tracking-tight text-gray-900 dark:text-white">Swiftesk CRM</span>
+        </div>
+        
+        <!-- Mobile close button -->
+        <div class="md:hidden flex justify-end p-4">
+            <button id="close-sidebar-btn" class="text-gray-500 hover:text-gray-700 dark:text-gray-400">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1" id="nav-menu">
+            <!-- Items injected by JS -->
+        </nav>
+
+        <!-- Bottom Actions (Theme, Settings, Logout) -->
+        <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex flex-col gap-2">
+            <!-- Current User Badge -->
+            <div class="flex items-center gap-2 px-2 py-1.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-xs text-gray-600 dark:text-gray-300">
+                <i class="fa-solid fa-circle-user text-primary-500 text-sm"></i>
+                <span id="user-display-email" class="truncate font-medium flex-1">Loading...</span>
+            </div>
+
+            <button onclick="toggleTheme()" class="flex items-center gap-3 w-full p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors text-sm font-medium">
+                <i class="fa-solid fa-moon w-5 text-center" id="theme-icon"></i>
+                <span id="theme-text">Dark Mode</span>
+            </button>
+            <div class="flex gap-2">
+                <button onclick="exportData()" class="flex-1 flex justify-center items-center gap-2 p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 transition-colors text-xs font-medium" title="Backup Data">
+                    <i class="fa-solid fa-download"></i> Export
+                </button>
+                <label class="flex-1 flex justify-center items-center gap-2 p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 transition-colors text-xs font-medium cursor-pointer" title="Restore Data">
+                    <i class="fa-solid fa-upload"></i> Import
+                    <input type="file" id="import-file" class="hidden" accept=".json" onchange="importData(event)">
+                </label>
+            </div>
+            <!-- Logout Button -->
+            <button onclick="handleLogout()" class="flex items-center justify-center gap-2 w-full p-2 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors text-xs font-semibold">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span>Sign Out</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Overlay for mobile sidebar -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-20 hidden md:hidden transition-opacity"></div>
+
+    <main class="flex-1 flex flex-col h-full overflow-hidden bg-gray-50 dark:bg-gray-900 relative">
+        
+        <!-- Top Action Bar (Contextual based on view) -->
+        <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 z-10 shadow-sm flex-shrink-0 min-h-[73px]">
+            <div>
+                <h1 id="view-title" class="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+                <p id="view-subtitle" class="text-sm text-gray-500 dark:text-gray-400 mt-1">Overview of your sales performance</p>
+            </div>
+            
+            <div id="top-actions" class="flex items-center gap-3 w-full sm:w-auto">
+                <!-- Search and Add buttons injected here based on view -->
+            </div>
+        </div>
+
+        <!-- Content Container -->
+        <div id="app-content" class="flex-1 overflow-y-auto p-4 md:p-6 w-full relative">
+            <!-- Views will be toggled here -->
+            
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="view-container">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8" id="dashboard-stats">
+                    <!-- Stats injected by JS -->
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+                        <div class="flex justify-between items-center mb-4 border-b pb-2 dark:border-gray-700">
+                            <h3 class="text-lg font-semibold" id="dash-followups-title">Upcoming Follow-ups</h3>
+                            <button onclick="navigate('followups')" class="text-xs text-primary-600 dark:text-primary-400 hover:underline font-semibold flex items-center gap-1">
+                                <span>View All</span>
+                                <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                            </button>
+                        </div>
+                        <div id="dash-followups" class="space-y-3"></div>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+                        <div class="flex justify-between items-center mb-4 border-b pb-2 dark:border-gray-700">
+                            <h3 class="text-lg font-semibold" id="dash-recent-leads-title">Recent Leads</h3>
+                            <button onclick="navigate('leads')" class="text-xs text-primary-600 dark:text-primary-400 hover:underline font-semibold flex items-center gap-1">
+                                <span>View All</span>
+                                <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                            </button>
+                        </div>
+                        <div id="dash-recent-leads" class="space-y-3"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pipeline (Kanban) View -->
+            <div id="view-pipeline" class="view-container hidden-view h-full">
+                <div class="flex gap-4 overflow-x-auto pb-4 h-full items-start" id="kanban-board">
+                    <!-- Columns injected by JS -->
+                </div>
+            </div>
+
+            <!-- Generic List View (Leads, Clients, Notes, Scripts, etc.) -->
+            <div id="view-list" class="view-container hidden-view">
+                <!-- Filters/Search Bar -->
+                <div id="list-filters" class="mb-4 flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                    <!-- Dynamic filters -->
+                </div>
+                
+                <!-- Table/Grid Container -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm whitespace-nowrap" id="data-table">
+                            <thead class="bg-gray-50 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
+                                <tr id="table-head-row">
+                                    <!-- Headers injected -->
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50" id="table-body">
+                                <!-- Rows injected -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="empty-state" class="hidden flex flex-col items-center justify-center p-12 text-gray-500 dark:text-gray-400">
+                        <i class="fa-solid fa-folder-open text-4xl mb-3 text-gray-300 dark:text-gray-600"></i>
+                        <p class="text-lg">No records found.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- ==================== MODAL FORM ==================== -->
+    <div id="modal-container" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 sm:p-6">
+        <div class="modal-overlay absolute inset-0 bg-gray-900/50" onclick="closeModal()"></div>
+        
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col relative z-10 transform scale-95 opacity-0 transition-all duration-200 ease-out" id="modal-content-box">
+            
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                <h2 id="modal-title" class="text-xl font-bold text-gray-900 dark:text-white">Modal Title</h2>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <!-- Modal Body (Scrollable) -->
+            <div class="p-5 overflow-y-auto flex-1">
+                <form id="dynamic-form" class="space-y-4">
+                    <!-- Form fields injected by JS -->
+                </form>
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="p-5 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 rounded-b-xl">
+                <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
+                <button type="button" id="modal-save-btn" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors shadow-sm font-medium">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div id="confirm-dialog" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4">
+         <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" onclick="closeConfirm()"></div>
+         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-sm w-full p-6 relative z-10 text-center scale-95 opacity-0 transition-all duration-200" id="confirm-box">
+             <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                <i class="fa-solid fa-triangle-exclamation text-red-600 dark:text-red-500 text-xl"></i>
+             </div>
+             <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2" id="confirm-title">Are you sure?</h3>
+             <p class="text-sm text-gray-500 dark:text-gray-400 mb-6" id="confirm-msg">This action cannot be undone.</p>
+             <div class="flex justify-center gap-3">
+                 <button onclick="closeConfirm()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full">Cancel</button>
+                 <button id="confirm-action-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors shadow-sm font-medium w-full">Delete</button>
+             </div>
+         </div>
+    </div>
+
+    <!-- Import Summary Dialog -->
+    <div id="import-summary-dialog" class="fixed inset-0 z-[65] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" onclick="closeImportSummary()"></div>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 relative z-10 scale-95 opacity-0 transition-all duration-200" id="import-summary-box">
+            <div class="flex items-center justify-between border-b pb-3 mb-4 dark:border-gray-700">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-file-import"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white" id="import-summary-title">Data Imported Successfully</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400" id="import-summary-subtitle">All records processed and ready to use</p>
+                    </div>
+                </div>
+                <button onclick="closeImportSummary()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Breakdown list -->
+            <div id="import-summary-list" class="space-y-2 mb-4 max-h-60 overflow-y-auto pr-1">
+                <!-- Injected via JS -->
+            </div>
+
+            <!-- Firebase sync status badge -->
+            <div id="import-firebase-status" class="p-3 rounded-xl mb-5 text-xs flex items-start gap-2.5">
+                <!-- Injected via JS -->
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button onclick="closeImportSummary()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors font-medium text-sm">
+                    Got it, Open CRM
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[70] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Floating Rich Text Toolbar -->
+    <div id="floating-toolbar" class="hidden absolute z-[80] bg-gray-900 border border-gray-700 shadow-xl rounded-lg px-2 py-1 flex gap-1 transition-opacity opacity-0 pointer-events-none transform -translate-x-1/2 -translate-y-full mt-[-8px]">
+        <button id="bold-btn" class="text-gray-300 hover:text-white hover:bg-gray-800 p-1.5 rounded font-bold text-sm h-8 w-8 flex items-center justify-center transition-colors" title="Bold Selected Text">
+            <i class="fa-solid fa-bold"></i>
+        </button>
+    </div>
+
+    <script>
+        // --- Firebase Initialization ---
+        let auth = null;
+        let db = null;
+        let currentUser = null;
+        let firestoreUnsubscribers = [];
+
+        if (typeof FIREBASE_CONFIG !== 'undefined') {
+            try {
+                firebase.initializeApp(FIREBASE_CONFIG);
+                auth = firebase.auth();
+                db = firebase.firestore();
+            } catch (err) {
+                console.error("Firebase init failed:", err);
+            }
+        } else {
+            console.error("FIREBASE_CONFIG not found. Please ensure env.js is present.");
+        }
+
+        // --- Constants & Config ---
+        const APP_VERSION = '2.0';
+        const COLLECTIONS = ['leads', 'followups', 'notes', 'questions', 'scripts', 'rebuttals', 'closing', 'pricing', 'niches', 'demo'];
+        
+        const PIPELINE_STAGES = [
+            { id: 'new', label: 'New Lead', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800' },
+            { id: 'contacted', label: 'Contacted', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300', border: 'border-yellow-200 dark:border-yellow-800' },
+            { id: 'interested', label: 'Interested', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800' },
+            { id: 'qualified', label: 'Qualified', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300', border: 'border-indigo-200 dark:border-indigo-800' },
+            { id: 'proposal', label: 'Proposal Sent', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-800' },
+            { id: 'negotiation', label: 'Negotiation', color: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300', border: 'border-pink-200 dark:border-pink-800' },
+            { id: 'won', label: 'Won', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', border: 'border-green-200 dark:border-green-800' },
+            { id: 'lost', label: 'Lost', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300', border: 'border-red-200 dark:border-red-800' }
+        ];
+
+        const PRIORITIES = {
+            'high': { label: 'High', icon: 'fa-arrow-up', color: 'text-red-500' },
+            'medium': { label: 'Medium', icon: 'fa-minus', color: 'text-yellow-500' },
+            'low': { label: 'Low', icon: 'fa-arrow-down', color: 'text-green-500' }
+        };
+
+        const NAV_ITEMS = [
+            { id: 'dashboard', icon: 'fa-chart-pie', label: 'Dashboard' },
+            { id: 'pipeline', icon: 'fa-columns', label: 'Pipeline' },
+            { id: 'leads', icon: 'fa-bullseye', label: 'Leads' },
+            { id: 'followups', icon: 'fa-calendar-check', label: 'Follow-ups' },
+            { id: 'notes', icon: 'fa-note-sticky', label: 'Client Notes' },
+            { id: 'questions', icon: 'fa-question-circle', label: 'Questions' },
+            { type: 'divider', label: 'Sales Playbook' },
+            { id: 'scripts', icon: 'fa-phone-volume', label: 'Cold Call Scripts' },
+            { id: 'rebuttals', icon: 'fa-shield-halved', label: 'Rebuttals' },
+            { id: 'closing', icon: 'fa-signature', label: 'Closing Scripts' },
+            { type: 'divider', label: 'Resources' },
+            { id: 'pricing', icon: 'fa-tags', label: 'Pricing' },
+            { id: 'niches', icon: 'fa-book-open', label: 'Niche Playbooks' },
+            { id: 'demo', icon: 'fa-desktop', label: 'Demo Info' }
+        ];
+
+        // --- State Management ---
+        let appData = {
+            leads: [],
+            followups: [],
+            notes: [],
+            questions: [],
+            scripts: [],
+            rebuttals: [],
+            closing: [],
+            pricing: [],
+            niches: [],
+            demo: []
+        };
+        
+        let currentView = 'dashboard';
+        let searchQuery = '';
+        let activeFilter = 'all';
+
+        // --- Utility Functions ---
+        const generateId = () => Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+        const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount || 0);
+        const formatDate = (dateString) => {
+            if(!dateString) return '-';
+            const options = { year: 'numeric', month: 'short', day: 'numeric' };
+            return new Date(dateString).toLocaleDateString(undefined, options);
+        };
+        const formatDateTime = (dateString) => {
+             if(!dateString) return '-';
+             const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' };
+             return new Date(dateString).toLocaleDateString(undefined, options);
+        };
+        const escapeHtml = (unsafe) => {
+            if (typeof unsafe !== 'string') return unsafe;
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;")
+                .replace(/&lt;b&gt;/gi, "<b>")
+                .replace(/&lt;\/b&gt;/gi, "</b>")
+                .replace(/&lt;br&gt;/gi, "<br>")
+                .replace(/&lt;br\/?&gt;/gi, "<br>")
+                .replace(/&lt;div&gt;/gi, "<div>")
+                .replace(/&lt;\/div&gt;/gi, "</div>");
+        };
+
+        // --- Authentication Logic ---
+        function setupAuthObserver() {
+            if (!auth) {
+                showToast("Firebase Auth not initialized. Check env.js", "error");
+                return;
+            }
+
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('user-display-email').innerText = user.email || 'User';
+                    hideLoginOverlay();
+                    initFirestoreSync();
+                    navigate(currentView || 'dashboard');
+                } else {
+                    currentUser = null;
+                    stopFirestoreSync();
+                    showLoginOverlay();
+                }
+            });
+        }
+
+        function showLoginOverlay() {
+            const overlay = document.getElementById('login-overlay');
+            overlay.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+            overlay.classList.add('opacity-100');
+        }
+
+        function hideLoginOverlay() {
+            const overlay = document.getElementById('login-overlay');
+            overlay.classList.remove('opacity-100');
+            overlay.classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+            }, 300);
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            const errorBox = document.getElementById('login-error');
+            const errorText = document.getElementById('login-error-text');
+            const submitBtn = document.getElementById('login-submit-btn');
+            const btnText = document.getElementById('login-btn-text');
+            const btnSpinner = document.getElementById('login-btn-spinner');
+
+            errorBox.classList.add('hidden');
+            btnText.innerText = 'Signing In...';
+            btnSpinner.classList.remove('hidden');
+            submitBtn.disabled = true;
+
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                showToast("Welcome back!", "success");
+            } catch (err) {
+                console.error("Login failed:", err);
+                errorBox.classList.remove('hidden');
+                let message = "Invalid email or password.";
+                if (err.code === 'auth/user-not-found') message = "No account found with this email.";
+                if (err.code === 'auth/wrong-password') message = "Incorrect password.";
+                if (err.code === 'auth/too-many-requests') message = "Too many failed attempts. Try again later.";
+                errorText.innerText = message;
+            } finally {
+                btnText.innerText = 'Sign In';
+                btnSpinner.classList.add('hidden');
+                submitBtn.disabled = false;
+            }
+        }
+
+        async function handleLogout() {
+            try {
+                if (auth) {
+                    await auth.signOut();
+                    showToast("Signed out successfully", "info");
+                }
+            } catch (err) {
+                console.error("Logout failed:", err);
+                showToast("Logout failed: " + err.message, "error");
+            }
+        }
+
+        function togglePasswordVisibility() {
+            const pwd = document.getElementById('login-password');
+            const icon = document.getElementById('password-toggle-icon');
+            if (pwd.type === 'password') {
+                pwd.type = 'text';
+                icon.className = 'fa-regular fa-eye-slash';
+            } else {
+                pwd.type = 'password';
+                icon.className = 'fa-regular fa-eye';
+            }
+        }
+
+        // --- Firestore Realtime Synchronization ---
+        function initFirestoreSync() {
+            if (!db || !currentUser) return;
+
+            stopFirestoreSync(); // Clean up existing listeners
+
+            COLLECTIONS.forEach(colName => {
+                const unsub = db.collection('users').doc(currentUser.uid).collection(colName)
+                    .onSnapshot(snapshot => {
+                        const items = [];
+                        snapshot.forEach(doc => {
+                            items.push({ id: doc.id, ...doc.data() });
+                        });
+
+                        // Sort by order ascending if available, then by created or date
+                        items.sort((a, b) => {
+                            if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                            if (a.order !== undefined) return -1;
+                            if (b.order !== undefined) return 1;
+                            return (b.created || '').localeCompare(a.created || '');
+                        });
+
+                        appData[colName] = items;
+
+                        // Re-render UI dynamically
+                        if (currentView === colName) {
+                            renderTableData(colName);
+                        } else if (currentView === 'pipeline' && colName === 'leads') {
+                            renderPipeline();
+                        } else if (currentView === 'dashboard') {
+                            renderDashboard();
+                        }
+                    }, err => {
+                        console.error(`Firestore sync error on ${colName}:`, err);
+                        showToast(`Sync error on ${colName}: ${err.message}`, 'error');
+                    });
+
+                firestoreUnsubscribers.push(unsub);
+            });
+        }
+
+        function stopFirestoreSync() {
+            firestoreUnsubscribers.forEach(unsub => unsub());
+            firestoreUnsubscribers = [];
+        }
+
+        async function saveToFirestore(collectionName, item) {
+            if (!db || !currentUser) {
+                showToast("Database not available or user not logged in", "error");
+                return;
+            }
+            try {
+                await db.collection('users').doc(currentUser.uid).collection(collectionName).doc(item.id).set(item, { merge: true });
+            } catch (err) {
+                console.error(`Error saving to ${collectionName}:`, err);
+                showToast(`Failed to save: ${err.message}`, "error");
+                throw err;
+            }
+        }
+
+        async function deleteFromFirestore(collectionName, id) {
+            if (!db || !currentUser) return;
+            try {
+                await db.collection('users').doc(currentUser.uid).collection(collectionName).doc(id).delete();
+            } catch (err) {
+                console.error(`Error deleting from ${collectionName}:`, err);
+                showToast(`Failed to delete: ${err.message}`, "error");
+                throw err;
+            }
+        }
+
+        async function batchUpdateOrder(collectionName, items) {
+            if (!db || !currentUser) return;
+            try {
+                const batch = db.batch();
+                const colRef = db.collection('users').doc(currentUser.uid).collection(collectionName);
+                items.forEach((item, index) => {
+                    item.order = index;
+                    const docRef = colRef.doc(item.id);
+                    batch.set(docRef, { order: index }, { merge: true });
+                });
+                await batch.commit();
+            } catch (err) {
+                console.error("Batch order update failed:", err);
+                showToast("Failed to save reordered positions", "error");
+            }
+        }
+
+        // --- UI Interactions (Theme, Sidebar, Toasts) ---
+        function toggleTheme() {
+            const html = document.documentElement;
+            html.classList.toggle('dark');
+            const isDark = html.classList.contains('dark');
+            
+            document.getElementById('theme-icon').className = isDark ? 'fa-solid fa-sun w-5 text-center text-yellow-400' : 'fa-solid fa-moon w-5 text-center text-gray-600';
+            document.getElementById('theme-text').innerText = isDark ? 'Light Mode' : 'Dark Mode';
+            localStorage.setItem('swiftesk_theme', isDark ? 'dark' : 'light');
+        }
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('swiftesk_theme');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('theme-icon').className = 'fa-solid fa-sun w-5 text-center text-yellow-400';
+                document.getElementById('theme-text').innerText = 'Light Mode';
+            }
+        }
+
+        // Mobile Sidebar Toggle
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        const openBtn = document.getElementById('mobile-menu-btn');
+        const closeBtn = document.getElementById('close-sidebar-btn');
+
+        function toggleSidebar(force) {
+            const isClosed = sidebar.classList.contains('-translate-x-full');
+            const shouldOpen = force !== undefined ? force : isClosed;
+
+            if (shouldOpen) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                setTimeout(() => overlay.classList.add('opacity-100'), 10);
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.remove('opacity-100');
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+            }
+        }
+
+        openBtn.addEventListener('click', () => toggleSidebar(true));
+        closeBtn.addEventListener('click', () => toggleSidebar(false));
+        overlay.addEventListener('click', () => toggleSidebar(false));
+
+        // Toast Notifications
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const colors = {
+                success: 'bg-green-600',
+                error: 'bg-red-600',
+                info: 'bg-blue-600',
+                warning: 'bg-yellow-600'
+            };
+            
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-circle-xmark',
+                info: 'fa-circle-info',
+                warning: 'fa-triangle-exclamation'
+            };
+
+            toast.className = `${colors[type] || colors.info} text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-3 toast pointer-events-auto max-w-sm transition-all duration-300`;
+            toast.innerHTML = `
+                <i class="fa-solid ${icons[type] || icons.info} text-lg"></i>
+                <span class="text-sm font-medium flex-1">${escapeHtml(message)}</span>
+                <button onclick="this.parentElement.remove()" class="opacity-70 hover:opacity-100 transition-opacity">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // --- Navigation and View Routing ---
+        function renderNavigation() {
+            const nav = document.getElementById('nav-menu');
+            nav.innerHTML = '';
+            
+            NAV_ITEMS.forEach(item => {
+                if (item.type === 'divider') {
+                    nav.innerHTML += `<div class="px-3 pt-4 pb-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">${item.label}</div>`;
+                    return;
+                }
+
+                const isActive = currentView === item.id;
+                const activeClasses = isActive 
+                    ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400 font-semibold' 
+                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white';
+                
+                nav.innerHTML += `
+                    <button onclick="navigate('${item.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${activeClasses}">
+                        <i class="fa-solid ${item.icon} w-5 text-center ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}"></i>
+                        ${item.label}
+                    </button>
+                `;
+            });
+        }
+
+        function navigate(viewId) {
+            currentView = viewId;
+            searchQuery = ''; // Reset search
+            activeFilter = 'all'; // Reset filter
+            renderNavigation();
+            
+            if (window.innerWidth < 768) {
+                toggleSidebar(false);
+            }
+            
+            // Hide all views
+            document.querySelectorAll('.view-container').forEach(el => el.classList.add('hidden-view'));
+            
+            // Update Headers & Actions
+            const titleEl = document.getElementById('view-title');
+            const subtitleEl = document.getElementById('view-subtitle');
+            const actionsEl = document.getElementById('top-actions');
+            
+            const navInfo = NAV_ITEMS.find(i => i.id === viewId);
+            titleEl.innerText = navInfo ? navInfo.label : 'CRM';
+            
+            if (viewId === 'dashboard') {
+                document.getElementById('view-dashboard').classList.remove('hidden-view');
+                subtitleEl.innerText = 'Overview of your sales performance';
+                actionsEl.innerHTML = '';
+                renderDashboard();
+            } else if (viewId === 'pipeline') {
+                document.getElementById('view-pipeline').classList.remove('hidden-view');
+                subtitleEl.innerText = 'Drag and drop leads to update status';
+                actionsEl.innerHTML = `
+                    <button onclick="openModal('leads')" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm whitespace-nowrap">
+                        <i class="fa-solid fa-plus mr-1"></i> Add Lead
+                    </button>
+                `;
+                renderPipeline();
+            } else {
+                document.getElementById('view-list').classList.remove('hidden-view');
+                setupListView(viewId);
+            }
+        }
+
+        // --- Dashboard Logic ---
+        function renderDashboard() {
+            const statsContainer = document.getElementById('dashboard-stats');
+            
+            const totalLeads = appData.leads.length;
+            const pipelineValue = appData.leads
+                .filter(l => l.stage !== 'won' && l.stage !== 'lost')
+                .reduce((sum, lead) => sum + (Number(lead.value) || 0), 0);
+            
+            const today = new Date().toISOString().split('T')[0];
+            const pendingFollowups = appData.followups.filter(f => f.status !== 'completed');
+            const dueToday = pendingFollowups.filter(f => f.date === today).length;
+            const overdue = pendingFollowups.filter(f => f.date < today).length;
+            
+            const savedQuestions = appData.questions.length;
+
+            const stats = [
+                { label: 'Total Leads', value: totalLeads, icon: 'fa-users', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+                { label: 'Pipeline Value', value: formatCurrency(pipelineValue), icon: 'fa-sack-dollar', color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30' },
+                { label: 'Follow-ups Due', value: dueToday + overdue, sub: overdue > 0 ? `<span class="text-red-500 font-semibold">${overdue} Overdue</span>` : 'All caught up', icon: 'fa-calendar-day', color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30' },
+                { label: 'Saved Questions', value: savedQuestions, icon: 'fa-question-circle', color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/30' }
+            ];
+
+            statsContainer.innerHTML = stats.map(s => `
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700 flex items-center gap-4">
+                    <div class="${s.bg} ${s.color} w-12 h-12 rounded-lg flex items-center justify-center text-xl shrink-0">
+                        <i class="fa-solid ${s.icon}"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">${s.label}</p>
+                        <h4 class="text-2xl font-bold text-gray-900 dark:text-white">${s.value}</h4>
+                        ${s.sub ? `<p class="text-xs mt-1 font-medium">${s.sub}</p>` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            // Render Recent Leads
+            const totalLeadsCount = appData.leads.length;
+            const recentLeads = [...appData.leads].sort((a,b) => new Date(b.created || 0) - new Date(a.created || 0)).slice(0, 5);
+            const dashLeadsTitle = document.getElementById('dash-recent-leads-title');
+            if (dashLeadsTitle) {
+                dashLeadsTitle.innerText = `Recent Leads (${recentLeads.length} of ${totalLeadsCount})`;
+            }
+            const leadsHtml = recentLeads.length ? recentLeads.map(lead => {
+                const stage = PIPELINE_STAGES.find(s => s.id === lead.stage) || PIPELINE_STAGES[0];
+                return `
+                <div class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 border border-transparent border-b-gray-100 dark:border-b-gray-700 last:border-b-transparent transition-colors cursor-pointer" onclick="editItem('leads', '${lead.id}')">
+                    <div>
+                        <h5 class="font-medium text-gray-900 dark:text-white text-sm">${escapeHtml(lead.name)}</h5>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">${escapeHtml(lead.contact || 'No contact')}</p>
+                    </div>
+                    <div class="text-right flex flex-col items-end gap-1">
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${stage.color}">${stage.label}</span>
+                        <span class="text-xs font-medium text-gray-600 dark:text-gray-300">${formatCurrency(lead.value)}</span>
+                    </div>
+                </div>
+            `}).join('') : '<p class="text-sm text-gray-500 italic p-3">No leads yet.</p>';
+            document.getElementById('dash-recent-leads').innerHTML = leadsHtml;
+
+            // Render Followups
+            const totalPendingCount = pendingFollowups.length;
+            let upcomingFollowups = [...pendingFollowups]
+                .sort((a, b) => new Date(a.date + ' ' + (a.time||'00:00')) - new Date(b.date + ' ' + (b.time||'00:00')))
+                .slice(0, 5);
+            const dashFollowupsTitle = document.getElementById('dash-followups-title');
+            if (dashFollowupsTitle) {
+                dashFollowupsTitle.innerText = `Upcoming Follow-ups (${upcomingFollowups.length} of ${totalPendingCount})`;
+            }
+                
+            const fHtml = upcomingFollowups.length ? upcomingFollowups.map(f => {
+                const lead = appData.leads.find(l => l.id === f.refId);
+                const isOverdue = f.date < today;
+                return `
+                <div class="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 border border-transparent border-b-gray-100 dark:border-b-gray-700 last:border-b-transparent transition-colors cursor-pointer" onclick="editItem('followups', '${f.id}')">
+                    <div class="mt-0.5 ${isOverdue ? 'text-red-500' : 'text-blue-500'}">
+                        <i class="fa-regular fa-clock"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-start">
+                            <h5 class="font-medium text-gray-900 dark:text-white text-sm">${escapeHtml(f.notes || 'Follow up')}</h5>
+                            <span class="text-xs whitespace-nowrap ${isOverdue ? 'text-red-600 font-semibold' : 'text-gray-500'}">${formatDate(f.date)} ${f.time||''}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">With: ${lead ? escapeHtml(lead.name) : 'Unknown'}</p>
+                    </div>
+                </div>
+            `}).join('') : '<p class="text-sm text-gray-500 italic p-3">No pending follow-ups.</p>';
+            document.getElementById('dash-followups').innerHTML = fHtml;
+        }
+
+        // --- Kanban Pipeline Logic (Drag & Drop by Stage) ---
+        function renderPipeline() {
+            const board = document.getElementById('kanban-board');
+            board.innerHTML = '';
+            
+            PIPELINE_STAGES.forEach(stage => {
+                const stageLeads = appData.leads.filter(l => l.stage === stage.id);
+                const stageValue = stageLeads.reduce((sum, l) => sum + (Number(l.value) || 0), 0);
+                
+                const col = document.createElement('div');
+                col.className = 'flex-shrink-0 w-80 bg-gray-100 dark:bg-gray-800/80 rounded-xl flex flex-col max-h-full border border-gray-200 dark:border-gray-700';
+                
+                col.innerHTML = `
+                    <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center rounded-t-xl ${stage.color.split(' ')[0]} bg-opacity-20 dark:bg-opacity-20">
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-semibold text-sm ${stage.color.split(' ')[1]}">${stage.label}</h3>
+                            <span class="text-xs bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full font-medium shadow-sm">${stageLeads.length}</span>
+                        </div>
+                        <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">${formatCurrency(stageValue)}</span>
+                    </div>
+                    <div class="p-2 flex-1 overflow-y-auto kanban-column space-y-2 transition-colors" data-stage="${stage.id}">
+                        ${stageLeads.map(lead => createKanbanCard(lead)).join('')}
+                    </div>
+                `;
+                board.appendChild(col);
+            });
+
+            setupKanbanDragAndDrop();
+        }
+
+        function createKanbanCard(lead) {
+            const prio = PRIORITIES[lead.priority || 'medium'];
+            return `
+                <div class="kanban-card bg-white dark:bg-gray-700 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-600 cursor-grab hover:shadow-md transition-shadow" draggable="true" data-id="${lead.id}" onclick="editItem('leads', '${lead.id}')">
+                    <div class="flex justify-between items-start mb-2">
+                        <h4 class="font-semibold text-sm text-gray-900 dark:text-white truncate" title="${escapeHtml(lead.name)}">${escapeHtml(lead.name)}</h4>
+                        <i class="fa-solid ${prio.icon} ${prio.color} text-xs ml-2 mt-1" title="Priority: ${prio.label}"></i>
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 truncate"><i class="fa-regular fa-user mr-1"></i>${escapeHtml(lead.contact || 'N/A')}</div>
+                    <div class="flex justify-between items-center mt-3 pt-2 border-t border-gray-100 dark:border-gray-600">
+                        <span class="text-xs font-semibold text-gray-700 dark:text-gray-200">${formatCurrency(lead.value)}</span>
+                        ${lead.source ? `<span class="text-[10px] bg-gray-100 dark:bg-gray-600 px-1.5 py-0.5 rounded text-gray-500 dark:text-gray-300">${escapeHtml(lead.source)}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function setupKanbanDragAndDrop() {
+            const cards = document.querySelectorAll('.kanban-card');
+            const columns = document.querySelectorAll('.kanban-column');
+
+            cards.forEach(card => {
+                card.addEventListener('dragstart', () => {
+                    card.classList.add('dragging');
+                    setTimeout(() => card.style.opacity = '0.5', 0); 
+                });
+                
+                card.addEventListener('dragend', () => {
+                    card.classList.remove('dragging');
+                    card.style.opacity = '1';
+                });
+            });
+
+            columns.forEach(col => {
+                col.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    col.classList.add('drag-over');
+                    const afterElement = getDragAfterElement(col, e.clientY);
+                    const draggable = document.querySelector('.kanban-card.dragging');
+                    if(draggable) {
+                        if (afterElement == null) {
+                            col.appendChild(draggable);
+                        } else {
+                            col.insertBefore(draggable, afterElement);
+                        }
+                    }
+                });
+                
+                col.addEventListener('dragleave', () => {
+                    col.classList.remove('drag-over');
+                });
+
+                col.addEventListener('drop', async e => {
+                    e.preventDefault();
+                    col.classList.remove('drag-over');
+                    const draggable = document.querySelector('.kanban-card.dragging');
+                    if(draggable) {
+                        const leadId = draggable.dataset.id;
+                        const newStage = col.dataset.stage;
+                        
+                        const leadIndex = appData.leads.findIndex(l => l.id === leadId);
+                        if(leadIndex > -1 && appData.leads[leadIndex].stage !== newStage) {
+                            appData.leads[leadIndex].stage = newStage;
+                            await saveToFirestore('leads', appData.leads[leadIndex]);
+                            renderPipeline();
+                            showToast("Lead moved to " + (PIPELINE_STAGES.find(s=>s.id===newStage)?.label || 'new stage'), 'success');
+                        }
+                    }
+                });
+            });
+        }
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.kanban-card:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        // --- List Views Engine (Tables, Search, Filters, DRAG & DROP REORDERING) ---
+        const VIEW_CONFIG = {
+            leads: {
+                title: 'Manage Leads', subtitle: 'Drag rows to change ordering • Click to edit', addBtn: 'Add Lead',
+                columns: ['Company & Name', 'Contact Details', 'Stage', 'Value', 'Priority'],
+                renderRow: (item) => {
+                    const stage = PIPELINE_STAGES.find(s => s.id === item.stage) || PIPELINE_STAGES[0];
+                    const prio = PRIORITIES[item.priority || 'medium'];
+                    return `
+                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                            ${escapeHtml(item.name)}
+                            ${item.website ? `<br><a href="${escapeHtml(item.website)}" target="_blank" class="text-xs text-blue-500 hover:underline inline-flex items-center mt-1" onclick="event.stopPropagation()"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Website</a>` : ''}
+                        </td>
+                        <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
+                            <span class="font-medium text-gray-800 dark:text-gray-200">${escapeHtml(item.contact || 'N/A')}</span><br>
+                            ${item.email ? `<span class="text-xs text-gray-400"><i class="fa-regular fa-envelope mr-1"></i>${escapeHtml(item.email)}</span><br>` : ''}
+                            ${item.businessPhone ? `<span class="text-xs text-gray-400" title="Business Number"><i class="fa-solid fa-building mr-1"></i>${escapeHtml(item.businessPhone)}</span><br>` : ''}
+                            ${item.personalPhone ? `<span class="text-xs text-gray-400" title="Personal Number"><i class="fa-solid fa-mobile-screen mr-1"></i>${escapeHtml(item.personalPhone)}</span>` : ''}
+                        </td>
+                        <td class="px-4 py-3"><span class="px-2 py-1 text-xs rounded-full ${stage.color}">${stage.label}</span></td>
+                        <td class="px-4 py-3 text-gray-900 dark:text-gray-200 font-medium">${formatCurrency(item.value)}</td>
+                        <td class="px-4 py-3"><span class="${prio.color} text-xs font-semibold"><i class="fa-solid ${prio.icon} mr-1"></i>${prio.label}</span></td>
+                    `;
+                }
+            },
+            followups: {
+                title: 'Follow-ups', subtitle: 'Drag rows to prioritize tasks', addBtn: 'Add Task',
+                columns: ['Date/Time', 'Linked Lead', 'Notes', 'Status'],
+                renderRow: (item) => {
+                    const relatedEntity = appData.leads.find(l => l.id === item.refId);
+                    const entityName = relatedEntity ? escapeHtml(relatedEntity.name) : '<i class="text-gray-400">Unlinked</i>';
+                    const isOverdue = item.date < new Date().toISOString().split('T')[0] && item.status !== 'completed';
+                    const statusColor = item.status === 'completed' ? 'text-green-500' : (isOverdue ? 'text-red-500 font-bold' : 'text-blue-500');
+                    return `
+                        <td class="px-4 py-3 font-medium ${statusColor}">${formatDate(item.date)} ${item.time||''}</td>
+                        <td class="px-4 py-3 text-gray-900 dark:text-white">${entityName}</td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300 truncate max-w-xs" title="${escapeHtml(item.notes)}">${escapeHtml(item.notes)}</td>
+                        <td class="px-4 py-3"><span class="px-2 py-1 text-xs rounded-md bg-gray-100 dark:bg-gray-700 uppercase tracking-wider font-semibold ${item.status==='completed'?'text-green-600':'text-gray-600 dark:text-gray-300'}">${item.status||'pending'}</span></td>
+                    `;
+                }
+            },
+            notes: {
+                title: 'Client Notes', subtitle: 'Drag notes to set order • Call notes, customer insights and context', addBtn: 'Add Note',
+                columns: ['Linked Lead', 'Note Content', 'Created'],
+                renderRow: (item) => {
+                    const relatedEntity = appData.leads.find(l => l.id === item.refId);
+                    const entityName = relatedEntity ? escapeHtml(relatedEntity.name) : '<span class="text-gray-400 text-xs italic">General Note</span>';
+                    return `
+                        <td class="px-4 py-3 font-semibold text-gray-900 dark:text-white">${entityName}</td>
+                        <td class="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-w-xl text-sm leading-relaxed">${escapeHtml(item.content || item.notes || '')}</td>
+                        <td class="px-4 py-3 text-gray-500 text-xs">${formatDate(item.created)}</td>
+                    `;
+                }
+            },
+            questions: {
+                title: 'Sales Questions', subtitle: 'Drag to reorder questions in preferred asking sequence', addBtn: 'Add Question',
+                columns: ['Category', 'Question', 'Context / Notes'],
+                renderRow: (item) => `
+                    <td class="px-4 py-3"><span class="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 rounded font-medium">${escapeHtml(item.category||'General')}</span></td>
+                    <td class="px-4 py-3 font-medium text-gray-900 dark:text-white whitespace-normal max-w-md">${escapeHtml(item.question)}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-normal text-sm max-w-sm">${escapeHtml(item.notes||'-')}</td>
+                `
+            },
+            scripts: {
+                title: 'Cold Call Scripts', subtitle: 'Drag scripts to set top favorite order', addBtn: 'New Script',
+                columns: ['Title', 'Category', 'Last Updated'],
+                renderRow: (item) => `
+                    <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">${escapeHtml(item.title)}</td>
+                    <td class="px-4 py-3"><span class="px-2 py-1 text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 rounded">${escapeHtml(item.category||'General')}</span></td>
+                    <td class="px-4 py-3 text-gray-500 text-sm">${formatDate(item.created)}</td>
+                `
+            },
+            rebuttals: {
+                title: 'Rebuttals', subtitle: 'Drag to arrange most frequent objections first', addBtn: 'New Rebuttal',
+                columns: ['Objection', 'Response Summary'],
+                renderRow: (item) => `
+                    <td class="px-4 py-3 font-medium text-red-600 dark:text-red-400 w-1/3 whitespace-normal">${escapeHtml(item.objection)}</td>
+                    <td class="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-normal text-sm leading-relaxed">${escapeHtml(item.response || '').substring(0, 150)}${(item.response || '').length>150?'...':''}</td>
+                `
+            },
+            closing: {
+                title: 'Closing Scripts', subtitle: 'Drag techniques to rank by preference', addBtn: 'New Technique',
+                columns: ['Technique Name', 'When to use'],
+                renderRow: (item) => `
+                    <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">${escapeHtml(item.title)}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400">${escapeHtml(item.scenario || '')}</td>
+                `
+            },
+            pricing: {
+                title: 'Pricing & Packages', subtitle: 'Drag packages to customize display hierarchy', addBtn: 'Add Package',
+                columns: ['Plan Name', 'Price', 'Key Features'],
+                renderRow: (item) => `
+                    <td class="px-4 py-3 font-bold text-gray-900 dark:text-white">${escapeHtml(item.plan)}</td>
+                    <td class="px-4 py-3 font-mono text-primary-600 dark:text-primary-400 font-semibold">${escapeHtml(item.price)}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-sm whitespace-normal max-w-sm">${escapeHtml(item.features || '')}</td>
+                `
+            },
+            niches: {
+                title: 'Niche Playbooks', subtitle: 'Drag playbooks to organize by market priority', addBtn: 'Add Playbook',
+                columns: ['Industry/Niche', 'Target Persona', 'Pain Points'],
+                renderRow: (item) => `
+                    <td class="px-4 py-3 font-medium text-blue-600 dark:text-blue-400">${escapeHtml(item.niche)}</td>
+                    <td class="px-4 py-3 text-gray-700 dark:text-gray-300">${escapeHtml(item.persona || '')}</td>
+                    <td class="px-4 py-3 text-sm text-gray-500 truncate max-w-xs">${escapeHtml(item.painPoints || '')}</td>
+                `
+            },
+            demo: {
+                title: 'Demo Information', subtitle: 'Drag demo setups to arrange quick-access list', addBtn: 'Add Demo Info',
+                columns: ['Product/Feature', 'Link', 'Credentials'],
+                renderRow: (item) => `
+                    <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">${escapeHtml(item.title)}</td>
+                    <td class="px-4 py-3"><a href="${escapeHtml(item.link || '#')}" target="_blank" class="text-blue-500 hover:underline" onclick="event.stopPropagation()">${escapeHtml(item.link || '-')} <i class="fa-solid fa-external-link-alt text-[10px]"></i></a></td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-400 font-mono text-xs">${escapeHtml(item.credentials || '')}</td>
+                `
+            }
+        };
+
+        function setupListView(viewId) {
+            const config = VIEW_CONFIG[viewId];
+            if (!config) return;
+
+            document.getElementById('view-subtitle').innerText = config.subtitle;
+            
+            // Build Top Actions (Search & Add)
+            document.getElementById('top-actions').innerHTML = `
+                <div class="relative w-full sm:w-64">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-search text-gray-400"></i>
+                    </div>
+                    <input type="text" id="global-search" class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm transition-colors" placeholder="Search..." value="${searchQuery}">
+                </div>
+                <button onclick="openModal('${viewId}')" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm whitespace-nowrap shrink-0">
+                    <i class="fa-solid fa-plus mr-1"></i> ${config.addBtn}
+                </button>
+            `;
+
+            document.getElementById('global-search').addEventListener('input', (e) => {
+                searchQuery = e.target.value.toLowerCase();
+                renderTableData(viewId);
+            });
+
+            // Filters
+            const filtersContainer = document.getElementById('list-filters');
+            filtersContainer.innerHTML = '';
+            
+            if (viewId === 'leads') {
+                const stages = [{id:'all', label:'All Stages'}, ...PIPELINE_STAGES];
+                filtersContainer.innerHTML = stages.map(s => `
+                    <button onclick="setFilter('${s.id}')" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${activeFilter === s.id ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}">
+                        ${s.label}
+                    </button>
+                `).join('');
+                filtersContainer.classList.remove('hidden');
+            } else if (viewId === 'followups') {
+                 filtersContainer.innerHTML = `
+                    <button onclick="setFilter('all')" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${activeFilter === 'all' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}">All</button>
+                    <button onclick="setFilter('pending')" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${activeFilter === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}">Pending</button>
+                    <button onclick="setFilter('completed')" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${activeFilter === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}">Completed</button>
+                `;
+                 filtersContainer.classList.remove('hidden');
+            } else {
+                filtersContainer.classList.add('hidden');
+            }
+
+            // Table Headers (Grip icon for drag handle as first column)
+            document.getElementById('table-head-row').innerHTML = `
+                <th scope="col" class="w-10 px-3 py-3 text-center text-gray-400 font-normal" title="Drag and drop rows to reorder">
+                    <i class="fa-solid fa-grip-vertical"></i>
+                </th>
+            ` + config.columns.map(col => `
+                <th scope="col" class="px-4 py-3 font-semibold">${col}</th>
+            `).join('') + `<th scope="col" class="px-4 py-3 text-right">Actions</th>`;
+
+            renderTableData(viewId);
+        }
+
+        function setFilter(filter) {
+            activeFilter = filter;
+            setupListView(currentView);
+        }
+
+        function renderTableData(viewId) {
+            const config = VIEW_CONFIG[viewId];
+            const tbody = document.getElementById('table-body');
+            const emptyState = document.getElementById('empty-state');
+            const table = document.getElementById('data-table');
+            
+            let data = [...(appData[viewId] || [])];
+
+            // Apply Filters
+            if (viewId === 'leads' && activeFilter !== 'all') {
+                data = data.filter(item => item.stage === activeFilter);
+            }
+            if (viewId === 'followups' && activeFilter !== 'all') {
+                data = data.filter(item => item.status === activeFilter);
+            }
+
+            // Apply Search
+            if (searchQuery) {
+                data = data.filter(item => {
+                    const values = Object.values(item).join(' ').toLowerCase();
+                    return values.includes(searchQuery);
+                });
+            }
+
+            if (data.length === 0) {
+                table.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+            } else {
+                table.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+                
+                tbody.innerHTML = data.map((item, index) => `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group cursor-pointer table-row-draggable border-b border-gray-100 dark:border-gray-700/50" 
+                        draggable="true" 
+                        data-id="${item.id}"
+                        data-index="${index}"
+                        onclick="editItem('${viewId}', '${item.id}')">
+                        <td class="w-10 px-3 py-3 text-center text-gray-400 hover:text-primary-500 drag-handle" title="Drag to reorder" onclick="event.stopPropagation()">
+                            <i class="fa-solid fa-grip-vertical text-sm"></i>
+                        </td>
+                        ${config.renderRow(item)}
+                        <td class="px-4 py-3 text-right">
+                            <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="event.stopPropagation(); editItem('${viewId}', '${item.id}')" class="text-blue-500 hover:text-blue-700 p-1" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                                <button onclick="event.stopPropagation(); requestDelete('${viewId}', '${item.id}')" class="text-red-500 hover:text-red-700 p-1" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+
+                setupTableDragAndDrop(viewId, data);
+            }
+        }
+
+        // --- Table Row Drag and Drop Logic ---
+        function setupTableDragAndDrop(viewId, currentRenderedData) {
+            const rows = document.querySelectorAll('.table-row-draggable');
+            let draggedRow = null;
+
+            rows.forEach(row => {
+                row.addEventListener('dragstart', (e) => {
+                    draggedRow = row;
+                    row.classList.add('table-row-dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', row.dataset.id);
+                });
+
+                row.addEventListener('dragend', () => {
+                    row.classList.remove('table-row-dragging');
+                    rows.forEach(r => r.classList.remove('border-t-2', 'border-b-2', 'border-primary-500'));
+                    draggedRow = null;
+                });
+
+                row.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (!draggedRow || draggedRow === row) return;
+
+                    const rect = row.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    if (e.clientY < midY) {
+                        row.classList.add('border-t-2', 'border-primary-500');
+                        row.classList.remove('border-b-2');
+                    } else {
+                        row.classList.add('border-b-2', 'border-primary-500');
+                        row.classList.remove('border-t-2');
+                    }
+                });
+
+                row.addEventListener('dragleave', () => {
+                    row.classList.remove('border-t-2', 'border-b-2', 'border-primary-500');
+                });
+
+                row.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    row.classList.remove('border-t-2', 'border-b-2', 'border-primary-500');
+                    if (!draggedRow || draggedRow === row) return;
+
+                    const sourceId = draggedRow.dataset.id;
+                    const targetId = row.dataset.id;
+
+                    const rect = row.getBoundingClientRect();
+                    const insertBefore = e.clientY < (rect.top + rect.height / 2);
+
+                    await reorderCollectionRows(viewId, sourceId, targetId, insertBefore);
+                });
+            });
+        }
+
+        async function reorderCollectionRows(viewId, sourceId, targetId, insertBefore) {
+            const list = [...appData[viewId]];
+            const sourceIndex = list.findIndex(i => i.id === sourceId);
+            const targetIndex = list.findIndex(i => i.id === targetId);
+
+            if (sourceIndex === -1 || targetIndex === -1) return;
+
+            const [movedItem] = list.splice(sourceIndex, 1);
+            let newIndex = list.findIndex(i => i.id === targetId);
+            if (!insertBefore) {
+                newIndex++;
+            }
+            list.splice(newIndex, 0, movedItem);
+
+            // Re-assign in local memory
+            appData[viewId] = list;
+            renderTableData(viewId);
+
+            // Save order to Firestore
+            await batchUpdateOrder(viewId, list);
+            showToast("Item position updated!", "success");
+        }
+
+        // --- Modal Forms Engine (Create/Edit) ---
+        let currentModalView = null;
+        let currentEditingId = null;
+
+        const FORM_SCHEMAS = {
+            leads: [
+                { id: 'name', label: 'Company / Lead Name', type: 'text', required: true, width: 'full' },
+                { id: 'contact', label: 'Contact Person', type: 'text', required: true, width: 'half' },
+                { id: 'email', label: 'Email', type: 'email', width: 'half' },
+                { id: 'businessPhone', label: 'Business Contact Number', type: 'text', width: 'half' },
+                { id: 'personalPhone', label: 'Personal Contact Number', type: 'text', width: 'half' },
+                { id: 'website', label: 'Website URL', type: 'url', width: 'full', placeholder: 'https://...' },
+                { id: 'address', label: 'Address', type: 'text', width: 'full' },
+                { id: 'value', label: 'Deal Value ($)', type: 'number', width: 'half' },
+                { id: 'stage', label: 'Pipeline Stage', type: 'select', options: PIPELINE_STAGES.map(s => ({value: s.id, label: s.label})), width: 'half' },
+                { id: 'priority', label: 'Priority', type: 'select', options: [{value:'low',label:'Low'},{value:'medium',label:'Medium'},{value:'high',label:'High'}], width: 'half' },
+                { id: 'source', label: 'Source', type: 'text', width: 'half', placeholder: 'e.g., Cold Call, Website' },
+                { id: 'salesDetails', label: 'Sales Details', type: 'textarea', width: 'full', rows: 4 }
+            ],
+            followups: [
+                { id: 'refId', label: 'Linked Lead', type: 'select', options: () => {
+                    const l = appData.leads.map(x=>({value:x.id, label:x.name}));
+                    return [{value:'',label:'-- Select --'}, ...l];
+                }, width: 'full' },
+                { id: 'date', label: 'Date', type: 'date', required: true, width: 'half' },
+                { id: 'time', label: 'Time', type: 'time', width: 'half' },
+                { id: 'status', label: 'Status', type: 'select', options: [{value:'pending',label:'Pending'},{value:'completed',label:'Completed'}], width: 'full' },
+                { id: 'notes', label: 'Task Description / Notes', type: 'textarea', required: true, width: 'full' }
+            ],
+            notes: [
+                { id: 'refId', label: 'Linked Lead (Optional)', type: 'select', options: () => {
+                    const l = appData.leads.map(x=>({value:x.id, label:x.name}));
+                    return [{value:'',label:'-- General Note (No Lead) --'}, ...l];
+                }, width: 'full' },
+                { id: 'content', label: 'Note Content', type: 'textarea', required: true, width: 'full', rows: 8, placeholder: 'Write call notes, objection insights, or sales context...' }
+            ],
+            questions: [
+                { id: 'category', label: 'Target Contact / Category', type: 'select', options: [{value:'Manager',label:'Manager'},{value:'Business Owner',label:'Business Owner'},{value:'Receptionist',label:'Receptionist'},{value:'Decision Maker',label:'Decision Maker'},{value:'General',label:'General'}], width: 'full' },
+                { id: 'question', label: 'Question', type: 'textarea', required: true, width: 'full', rows: 3 },
+                { id: 'notes', label: 'When to ask / Context', type: 'textarea', width: 'full', rows: 2 }
+            ],
+            scripts: [
+                { id: 'title', label: 'Script Title', type: 'text', required: true, width: 'full' },
+                { id: 'category', label: 'Category', type: 'select', options: [{value:'Opening',label:'Opening'},{value:'Voicemail',label:'Voicemail'},{value:'Follow-up',label:'Follow-up'},{value:'Other',label:'Other'}], width: 'full' },
+                { id: 'content', label: 'Script Content', type: 'textarea', required: true, width: 'full', rows: 8 }
+            ],
+            rebuttals: [
+                { id: 'objection', label: 'Common Objection', type: 'text', required: true, width: 'full', placeholder: 'e.g., "We are too busy right now"' },
+                { id: 'response', label: 'Rebuttal / Response', type: 'textarea', required: true, width: 'full', rows: 6 }
+            ],
+            closing: [
+                { id: 'title', label: 'Technique Name', type: 'text', required: true, width: 'full' },
+                { id: 'scenario', label: 'When to use this', type: 'text', required: true, width: 'full' },
+                { id: 'content', label: 'Script / Execution', type: 'textarea', required: true, width: 'full', rows: 6 }
+            ],
+            pricing: [
+                { id: 'plan', label: 'Plan Name', type: 'text', required: true, width: 'half' },
+                { id: 'price', label: 'Price', type: 'text', required: true, width: 'half', placeholder: 'e.g., $99/mo' },
+                { id: 'features', label: 'Key Features (comma separated)', type: 'textarea', width: 'full', rows: 3 },
+                { id: 'notes', label: 'Internal Notes / Discounts', type: 'textarea', width: 'full' }
+            ],
+            niches: [
+                { id: 'niche', label: 'Industry / Niche', type: 'text', required: true, width: 'full' },
+                { id: 'persona', label: 'Target Persona', type: 'text', width: 'full' },
+                { id: 'painPoints', label: 'Common Pain Points', type: 'textarea', width: 'full', rows: 3 },
+                { id: 'strategy', label: 'Pitch Strategy', type: 'textarea', width: 'full', rows: 4 }
+            ],
+            demo: [
+                { id: 'title', label: 'Product / Feature', type: 'text', required: true, width: 'full' },
+                { id: 'link', label: 'Demo URL', type: 'url', width: 'full' },
+                { id: 'credentials', label: 'Login Credentials / Details', type: 'textarea', width: 'full', rows: 3 },
+                { id: 'script', label: 'Demo Flow / Script', type: 'textarea', width: 'full', rows: 4 }
+            ]
+        };
+
+        function openModal(viewId, itemId = null) {
+            currentModalView = viewId;
+            currentEditingId = itemId;
+            
+            const schema = FORM_SCHEMAS[viewId];
+            const modal = document.getElementById('modal-container');
+            const contentBox = document.getElementById('modal-content-box');
+            const form = document.getElementById('dynamic-form');
+            const title = document.getElementById('modal-title');
+            
+            title.innerText = itemId ? `Edit ${VIEW_CONFIG[viewId].title.replace(/s$/, '')}` : `New ${VIEW_CONFIG[viewId].title.replace(/s$/, '')}`;
+            
+            let itemData = {};
+            if (itemId) {
+                itemData = appData[viewId].find(i => i.id === itemId) || {};
+            }
+
+            let formHtml = '<div class="flex flex-wrap -mx-2">';
+            schema.forEach(field => {
+                const widthClass = field.width === 'half' ? 'w-full md:w-1/2' : 'w-full';
+                const value = itemData[field.id] !== undefined ? itemData[field.id] : '';
+                const req = field.required ? 'required' : '';
+                const reqAst = field.required ? '<span class="text-red-500">*</span>' : '';
+                
+                formHtml += `<div class="${widthClass} px-2 mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" for="${field.id}">${field.label} ${reqAst}</label>`;
+                
+                const inputClasses = "w-full p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors";
+
+                if (field.type === 'textarea' || field.type === 'text') {
+                    const heightClass = field.type === 'textarea' ? 'min-h-[100px] max-h-64' : 'min-h-[42px] max-h-[150px]';
+                    formHtml += `<div id="${field.id}" name="${field.id}" contenteditable="true" class="${inputClasses} ${heightClass} overflow-y-auto whitespace-pre-wrap cursor-text leading-relaxed" ${req} placeholder="${field.placeholder||''}">${value}</div>`;
+                } else if (field.type === 'select') {
+                    const opts = typeof field.options === 'function' ? field.options() : field.options;
+                    formHtml += `<select id="${field.id}" name="${field.id}" class="${inputClasses}" ${req}>`;
+                    opts.forEach(opt => {
+                        const selected = value === opt.value ? 'selected' : '';
+                        formHtml += `<option value="${opt.value}" ${selected}>${opt.label}</option>`;
+                    });
+                    formHtml += `</select>`;
+                } else {
+                    formHtml += `<input type="${field.type}" id="${field.id}" name="${field.id}" value="${escapeHtml(value)}" class="${inputClasses}" ${req} placeholder="${field.placeholder||''}">`;
+                }
+                formHtml += `</div>`;
+            });
+            formHtml += '</div>';
+            form.innerHTML = formHtml;
+
+            const saveBtn = document.getElementById('modal-save-btn');
+            saveBtn.onclick = saveModalData;
+
+            modal.classList.remove('hidden');
+            void modal.offsetWidth;
+            contentBox.classList.remove('scale-95', 'opacity-0');
+            contentBox.classList.add('scale-100', 'opacity-100');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal-container');
+            const contentBox = document.getElementById('modal-content-box');
+            
+            contentBox.classList.remove('scale-100', 'opacity-100');
+            contentBox.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('dynamic-form').reset();
+                document.querySelectorAll('#dynamic-form div[contenteditable]').forEach(div => div.innerHTML = '');
+                currentModalView = null;
+                currentEditingId = null;
+            }, 200);
+        }
+
+        async function saveModalData() {
+            const schema = FORM_SCHEMAS[currentModalView];
+            let isValid = true;
+            
+            schema.forEach(field => {
+                if (field.required) {
+                    const el = document.getElementById(field.id);
+                    if (el) {
+                        const val = el.tagName === 'DIV' ? el.innerText.trim() : el.value.trim();
+                        if (!val) {
+                            isValid = false;
+                            el.classList.add('border-red-500', 'dark:border-red-500', 'ring-1', 'ring-red-500');
+                        } else {
+                            el.classList.remove('border-red-500', 'dark:border-red-500', 'ring-1', 'ring-red-500');
+                        }
+                    }
+                }
+            });
+
+            if (!isValid) {
+                showToast('Please fill all required fields.', 'error');
+                return;
+            }
+
+            let itemData = currentEditingId 
+                ? (appData[currentModalView].find(i => i.id === currentEditingId) || { id: currentEditingId })
+                : { 
+                    id: generateId(), 
+                    created: new Date().toISOString(),
+                    order: appData[currentModalView].length 
+                  };
+
+            schema.forEach(field => {
+                const el = document.getElementById(field.id);
+                if (el) {
+                    itemData[field.id] = el.tagName === 'DIV' ? el.innerHTML : el.value;
+                }
+            });
+            
+            if(currentModalView === 'leads' && !currentEditingId && !itemData.stage) itemData.stage = 'new';
+            if(currentModalView === 'followups' && !currentEditingId && !itemData.status) itemData.status = 'pending';
+
+            try {
+                await saveToFirestore(currentModalView, itemData);
+                closeModal();
+                showToast('Saved to Firestore successfully!', 'success');
+            } catch (err) {
+                showToast('Failed to save to Firestore', 'error');
+            }
+        }
+
+        function editItem(viewId, id) {
+            openModal(viewId, id);
+        }
+
+        // --- Delete Logic and Confirmation ---
+        let itemToDelete = null;
+
+        function requestDelete(viewId, id) {
+            itemToDelete = { viewId, id };
+            const dialog = document.getElementById('confirm-dialog');
+            const box = document.getElementById('confirm-box');
+            
+            dialog.classList.remove('hidden');
+            void dialog.offsetWidth;
+            box.classList.remove('scale-95', 'opacity-0');
+            box.classList.add('scale-100', 'opacity-100');
+            
+            document.getElementById('confirm-action-btn').onclick = confirmDelete;
+        }
+
+        function closeConfirm() {
+            const dialog = document.getElementById('confirm-dialog');
+            const box = document.getElementById('confirm-box');
+            
+            box.classList.remove('scale-100', 'opacity-100');
+            box.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                dialog.classList.add('hidden');
+                itemToDelete = null;
+            }, 200);
+        }
+
+        async function confirmDelete() {
+            if (!itemToDelete) return;
+            
+            const { viewId, id } = itemToDelete;
+            
+            try {
+                await deleteFromFirestore(viewId, id);
+
+                // Cleanup related follow-ups if lead is deleted
+                if (viewId === 'leads') {
+                    const linkedFollowups = appData.followups.filter(f => f.refId === id);
+                    for (const f of linkedFollowups) {
+                        await deleteFromFirestore('followups', f.id);
+                    }
+                }
+
+                closeConfirm();
+                showToast('Deleted from Firestore', 'info');
+            } catch (err) {
+                showToast('Delete failed: ' + err.message, 'error');
+            }
+        }
+
+        // --- Export/Import (AUTO STORE IMPORT TO FIRESTORE) ---
+        function exportData() {
+            const dataStr = JSON.stringify(appData, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `swiftesk_crm_backup_${new Date().toISOString().split('T')[0]}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+            showToast('Data exported successfully', 'success');
+        }
+
+        async function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    showToast("Reading and parsing JSON file...", "info");
+                    let imported;
+                    try {
+                        imported = JSON.parse(e.target.result);
+                    } catch (parseErr) {
+                        throw new Error("Invalid JSON file. Please check that the file is formatted correctly.");
+                    }
+
+                    if (!imported || typeof imported !== 'object') {
+                        throw new Error("File must be a JSON object or array of records.");
+                    }
+
+                    // Normalized container for all collections
+                    const normalized = {
+                        leads: [],
+                        followups: [],
+                        notes: [],
+                        questions: [],
+                        scripts: [],
+                        rebuttals: [],
+                        closing: [],
+                        pricing: [],
+                        niches: [],
+                        demo: []
+                    };
+
+                    // Alias dictionary for flexible mapping
+                    const aliasMap = {
+                        'leads': 'leads',
+                        'lead': 'leads',
+                        'clients': 'leads',
+                        'client': 'leads',
+                        'contacts': 'leads',
+                        'followups': 'followups',
+                        'followup': 'followups',
+                        'follow_ups': 'followups',
+                        'tasks': 'followups',
+                        'task': 'followups',
+                        'notes': 'notes',
+                        'client_notes': 'notes',
+                        'clientnotes': 'notes',
+                        'note': 'notes',
+                        'questions': 'questions',
+                        'question': 'questions',
+                        'sales_questions': 'questions',
+                        'scripts': 'scripts',
+                        'script': 'scripts',
+                        'cold_call_scripts': 'scripts',
+                        'rebuttals': 'rebuttals',
+                        'rebuttal': 'rebuttals',
+                        'closing': 'closing',
+                        'closing_scripts': 'closing',
+                        'pricing': 'pricing',
+                        'packages': 'pricing',
+                        'niches': 'niches',
+                        'niche': 'niches',
+                        'playbooks': 'niches',
+                        'demo': 'demo',
+                        'demos': 'demo'
+                    };
+
+                    // Case A: Imported is a single Array of records directly
+                    if (Array.isArray(imported)) {
+                        if (imported.length === 0) {
+                            showToast("The imported JSON file is empty.", "warning");
+                            return;
+                        }
+                        const sample = imported[0] || {};
+                        let detectedCol = 'leads';
+                        if ('question' in sample) detectedCol = 'questions';
+                        else if ('objection' in sample) detectedCol = 'rebuttals';
+                        else if ('scenario' in sample) detectedCol = 'closing';
+                        else if ('plan' in sample || 'price' in sample) detectedCol = 'pricing';
+                        else if ('persona' in sample || 'niche' in sample) detectedCol = 'niches';
+                        else if ('credentials' in sample) detectedCol = 'demo';
+                        else if ('date' in sample && 'time' in sample) detectedCol = 'followups';
+                        else if ('content' in sample && !('title' in sample)) detectedCol = 'notes';
+                        else if ('title' in sample && 'content' in sample) detectedCol = 'scripts';
+                        else if (currentView !== 'dashboard' && currentView !== 'pipeline' && COLLECTIONS.includes(currentView)) {
+                            detectedCol = currentView;
+                        }
+                        normalized[detectedCol] = imported;
+                    } 
+                    // Case B: Imported is an Object containing collections
+                    else {
+                        Object.keys(imported).forEach(key => {
+                            const lowerKey = key.toLowerCase().trim();
+                            const targetCol = aliasMap[lowerKey];
+                            if (targetCol && Array.isArray(imported[key])) {
+                                normalized[targetCol].push(...imported[key]);
+                            }
+                        });
+                    }
+
+                    // Process, sanitize, and merge records
+                    let totalImported = 0;
+                    const countsByCol = {};
+                    let primaryTargetView = null;
+                    let maxCount = 0;
+
+                    for (const colName of COLLECTIONS) {
+                        const rawItems = normalized[colName] || [];
+                        if (rawItems.length === 0) continue;
+
+                        const processedItems = rawItems.map((rawItem, idx) => {
+                            // Strip any undefined properties so Firestore never throws unsupported field value error
+                            const item = JSON.parse(JSON.stringify(rawItem, (k, v) => (v === undefined ? null : v)));
+                            if (!item.id) item.id = generateId();
+                            if (!item.created) item.created = new Date().toISOString();
+                            if (item.order === undefined || typeof item.order !== 'number') {
+                                item.order = (appData[colName] ? appData[colName].length : 0) + idx;
+                            }
+                            if (colName === 'leads' && !item.stage) item.stage = 'new';
+                            if (colName === 'followups' && !item.status) item.status = 'pending';
+                            if (colName === 'notes') item.content = item.content || item.notes || '';
+                            return item;
+                        });
+
+                        // Merge into in-memory appData IMMEDIATELY so all data displays right away
+                        const existingMap = new Map((appData[colName] || []).map(i => [i.id, i]));
+                        processedItems.forEach(item => existingMap.set(item.id, item));
+                        
+                        const mergedList = Array.from(existingMap.values());
+                        mergedList.sort((a, b) => {
+                            if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                            if (a.order !== undefined) return -1;
+                            if (b.order !== undefined) return 1;
+                            return (b.created || '').localeCompare(a.created || '');
+                        });
+                        appData[colName] = mergedList;
+
+                        countsByCol[colName] = processedItems.length;
+                        totalImported += processedItems.length;
+
+                        if (processedItems.length > maxCount) {
+                            maxCount = processedItems.length;
+                            primaryTargetView = colName;
+                        }
+                    }
+
+                    if (totalImported === 0) {
+                        showToast("No matching CRM records found in the JSON file. Check keys format.", "warning");
+                        return;
+                    }
+
+                    // Reset filters so imported items are not hidden by previous active filters
+                    searchQuery = '';
+                    activeFilter = 'all';
+
+                    // Save to Firestore if user is authenticated
+                    let firestoreSavedCount = 0;
+                    const firestoreErrors = [];
+
+                    if (db && currentUser) {
+                        const userRef = db.collection('users').doc(currentUser.uid);
+                        
+                        for (const colName of COLLECTIONS) {
+                            const items = appData[colName] || [];
+                            if (items.length === 0) continue;
+
+                            try {
+                                for (let i = 0; i < items.length; i += 300) {
+                                    const chunk = items.slice(i, i + 300);
+                                    const batch = db.batch();
+                                    chunk.forEach(item => {
+                                        const clean = JSON.parse(JSON.stringify(item, (k, v) => (v === undefined ? null : v)));
+                                        const docRef = userRef.collection(colName).doc(item.id || generateId());
+                                        batch.set(docRef, clean, { merge: true });
+                                    });
+                                    await batch.commit();
+                                    firestoreSavedCount += chunk.length;
+                                }
+                            } catch (colErr) {
+                                console.error(`Firestore error on ${colName}:`, colErr);
+                                firestoreErrors.push(`${colName}: ${colErr.message}`);
+                            }
+                        }
+                    }
+
+                    // Navigate to primary view
+                    const targetView = (currentView !== 'dashboard' && countsByCol[currentView]) ? currentView : (primaryTargetView || 'leads');
+                    navigate(targetView);
+
+                    // Open interactive Summary Modal so the user can see every single imported item breakdown
+                    showImportSummary(totalImported, countsByCol, firestoreSavedCount, firestoreErrors);
+
+                } catch (error) {
+                    showToast('Import failed: ' + error.message, 'error');
+                    console.error("Import error:", error);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // --- Import Summary Modal Logic ---
+        function showImportSummary(totalImported, countsByCol, firestoreSavedCount, firestoreErrors) {
+            const dialog = document.getElementById('import-summary-dialog');
+            const box = document.getElementById('import-summary-box');
+            const list = document.getElementById('import-summary-list');
+            const fbStatus = document.getElementById('import-firebase-status');
+
+            if (!dialog || !box || !list || !fbStatus) return;
+
+            list.innerHTML = Object.entries(countsByCol).map(([col, count]) => {
+                const title = VIEW_CONFIG[col] ? VIEW_CONFIG[col].title : col;
+                const icon = NAV_ITEMS.find(n => n.id === col)?.icon || 'fa-folder';
+                return `
+                    <div class="flex items-center justify-between p-2.5 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700">
+                        <div class="flex items-center gap-2.5">
+                            <i class="fa-solid ${icon} text-primary-500 w-5 text-center"></i>
+                            <span class="text-sm font-medium text-gray-800 dark:text-gray-200">${title}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">${count} items</span>
+                            <button onclick="closeImportSummary(); navigate('${col}')" class="text-xs text-primary-600 dark:text-primary-400 hover:underline font-semibold ml-2 flex items-center gap-1">
+                                <span>View Tab</span>
+                                <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (currentUser && firestoreErrors.length === 0) {
+                fbStatus.className = 'p-3 rounded-xl mb-5 text-xs flex items-start gap-2.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300';
+                fbStatus.innerHTML = `
+                    <i class="fa-solid fa-cloud-arrow-up text-base flex-shrink-0 text-green-600 dark:text-green-400 mt-0.5"></i>
+                    <div>
+                        <strong class="font-semibold block">All ${firestoreSavedCount} Records Synced to Cloud Firestore</strong>
+                        Securely stored under your user account (<code>${currentUser.email}</code>).
+                    </div>
+                `;
+            } else if (!currentUser) {
+                fbStatus.className = 'p-3 rounded-xl mb-5 text-xs flex items-start gap-2.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300';
+                fbStatus.innerHTML = `
+                    <i class="fa-solid fa-triangle-exclamation text-base flex-shrink-0 text-yellow-600 mt-0.5"></i>
+                    <div>
+                        <strong class="font-semibold block">Notice: You are currently not signed in</strong>
+                        All ${totalImported} items are loaded in the interface now. To permanently sync to Firestore in the cloud, please sign in with your email & password.
+                    </div>
+                `;
+            } else {
+                fbStatus.className = 'p-3 rounded-xl mb-5 text-xs flex items-start gap-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300';
+                fbStatus.innerHTML = `
+                    <i class="fa-solid fa-circle-exclamation text-base flex-shrink-0 text-red-600 mt-0.5"></i>
+                    <div>
+                        <strong class="font-semibold block">Firestore Security Rules Notice</strong>
+                        Data is loaded and displayed on your screen, but Firestore rejected writes: <code>${firestoreErrors[0] || 'Permission denied'}</code>. 
+                        Please set the Firestore Rules in your Firebase Console to allow read & write for authenticated users.
+                    </div>
+                `;
+            }
+
+            dialog.classList.remove('hidden');
+            void dialog.offsetWidth;
+            box.classList.remove('scale-95', 'opacity-0');
+            box.classList.add('scale-100', 'opacity-100');
+        }
+
+        function closeImportSummary() {
+            const dialog = document.getElementById('import-summary-dialog');
+            const box = document.getElementById('import-summary-box');
+            if (!dialog || !box) return;
+            box.classList.remove('scale-100', 'opacity-100');
+            box.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                dialog.classList.add('hidden');
+            }, 200);
+        }
+
+        // --- Floating Toolbar Logic ---
+        const toolbar = document.getElementById('floating-toolbar');
+        const boldBtn = document.getElementById('bold-btn');
+
+        document.addEventListener('selectionchange', () => {
+            const selection = window.getSelection();
+            if (selection.toString().trim().length > 0 && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                
+                let isEditable = false;
+                let node = selection.anchorNode;
+                while (node) {
+                    if (node.nodeType === 1 && node.getAttribute('contenteditable') === 'true') {
+                        isEditable = true;
+                        break;
+                    }
+                    node = node.parentNode;
+                }
+
+                if (isEditable) {
+                    const rect = range.getBoundingClientRect();
+                    toolbar.classList.remove('hidden');
+                    
+                    toolbar.style.top = `${rect.top + window.scrollY}px`;
+                    toolbar.style.left = `${rect.left + window.scrollX + (rect.width / 2)}px`;
+                    
+                    setTimeout(() => {
+                        toolbar.classList.remove('opacity-0', 'pointer-events-none');
+                    }, 10);
+                } else {
+                    hideToolbar();
+                }
+            } else {
+                hideToolbar();
+            }
+        });
+
+        function hideToolbar() {
+            toolbar.classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                if(toolbar.classList.contains('opacity-0')) toolbar.classList.add('hidden');
+            }, 150);
+        }
+
+        boldBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            document.execCommand('bold', false, null);
+        });
+
+        document.addEventListener('mousedown', (e) => {
+            if (!toolbar.contains(e.target) && window.getSelection().isCollapsed) {
+                hideToolbar();
+            }
+        });
+
+        document.addEventListener('paste', function(e) {
+            if (e.target.closest('[contenteditable="true"]')) {
+                e.preventDefault();
+                const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+                document.execCommand('insertText', false, text);
+            }
+        });
+
+        // --- Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            renderNavigation();
+            setupAuthObserver();
+        });
+
+    </script>
+</body>
+</html>
