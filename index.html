@@ -657,6 +657,11 @@
                         } else if (currentView === 'dashboard') {
                             renderDashboard();
                         }
+
+                        // Check follow-up alarm every time followups sync
+                        if (colName === 'followups') {
+                            checkTodayFollowups();
+                        }
                     }, err => {
                         console.error(`Firestore sync error on ${colName}:`, err);
                         showToast(`Sync error on ${colName}: ${err.message}`, 'error');
@@ -664,11 +669,92 @@
 
                 firestoreUnsubscribers.push(unsub);
             });
+
+            // Also check every 5 minutes (in case tab is left open all day)
+            if (_followupAlarmInterval) clearInterval(_followupAlarmInterval);
+            _followupAlarmInterval = setInterval(() => {
+                _followupNotifiedToday = null; // reset so a new check can fire
+                checkTodayFollowups();
+            }, 5 * 60 * 1000);
         }
 
         function stopFirestoreSync() {
             firestoreUnsubscribers.forEach(unsub => unsub());
             firestoreUnsubscribers = [];
+        }
+
+        // --- Today's Follow-up Alarm & Notification ---
+        let _followupAlarmInterval = null;
+        let _followupNotifiedToday = null; // track date so we only alarm once per day per session
+
+        function playTickAlarm(durationMs = 2500) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const totalTicks = Math.floor(durationMs / 350);
+                for (let i = 0; i < totalTicks; i++) {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    gain.gain.setValueAtTime(0, ctx.currentTime);
+                    const start = ctx.currentTime + i * 0.35;
+                    gain.gain.linearRampToValueAtTime(0.6, start + 0.02);
+                    gain.gain.linearRampToValueAtTime(0, start + 0.18);
+                    osc.start(start);
+                    osc.stop(start + 0.2);
+                }
+                // Auto-close context after alarm finishes
+                setTimeout(() => ctx.close(), durationMs + 500);
+            } catch (e) {
+                console.warn('Audio alarm failed:', e);
+            }
+        }
+
+        function showFollowupBrowserNotification(count, names) {
+            if (!('Notification' in window)) return;
+            const body = names.length
+                ? `Due today: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3} more` : ''}`
+                : `${count} follow-up(s) are pending for today.`;
+            const n = new Notification('⏰ Swiftesk CRM — Follow-up Alert', {
+                body,
+                icon: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                tag: 'swiftesk-followup',
+                renotify: true
+            });
+            setTimeout(() => n.close(), 8000);
+        }
+
+        async function checkTodayFollowups() {
+            const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+            // Avoid re-alarming for the same calendar day in the same session
+            if (_followupNotifiedToday === todayStr) return;
+
+            const pending = (appData.followups || []).filter(f => {
+                if ((f.status || '').toLowerCase() === 'done' || (f.status || '').toLowerCase() === 'completed') return false;
+                const due = (f.date || f.dueDate || f.followupDate || '').slice(0, 10);
+                return due === todayStr;
+            });
+
+            if (pending.length === 0) return;
+
+            _followupNotifiedToday = todayStr;
+            const names = pending.map(f => f.name || f.title || f.contact || '').filter(Boolean);
+
+            // 1. In-app toast banner
+            showToast(`⏰ ${pending.length} follow-up(s) due TODAY!`, 'warning');
+
+            // 2. Browser Notification
+            if (Notification.permission === 'granted') {
+                showFollowupBrowserNotification(pending.length, names);
+            } else if (Notification.permission !== 'denied') {
+                const perm = await Notification.requestPermission();
+                if (perm === 'granted') showFollowupBrowserNotification(pending.length, names);
+            }
+
+            // 3. Tick-tick alarm (2.5 sec) — works even in background tab
+            playTickAlarm(2500);
         }
 
         async function saveToFirestore(collectionName, item) {
