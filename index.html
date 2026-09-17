@@ -242,6 +242,12 @@
                 <i class="fa-solid fa-key"></i>
                 <span>Change Password</span>
             </button>
+            <!-- Set Reminder Button -->
+            <button onclick="openReminderModal()" class="flex items-center justify-center gap-2 w-full p-2 rounded-lg text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20 transition-colors text-xs font-semibold">
+                <i class="fa-solid fa-bell"></i>
+                <span>Set Reminder</span>
+                <span id="reminder-badge" class="hidden ml-auto bg-indigo-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
+            </button>
             <!-- Logout Button -->
             <button onclick="requestLogout()" class="flex items-center justify-center gap-2 w-full p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors text-xs font-semibold">
                 <i class="fa-solid fa-right-from-bracket"></i>
@@ -486,6 +492,90 @@
 
     <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-[70] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Reminder Modal -->
+    <div id="reminder-modal" class="fixed inset-0 z-[72] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" onclick="closeReminderModal()"></div>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md relative z-10 transform scale-95 opacity-0 transition-all duration-200" id="reminder-box">
+            <!-- Header -->
+            <div class="flex items-center gap-3 p-5 border-b border-gray-200 dark:border-gray-700">
+                <div class="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                    <i class="fa-solid fa-bell text-lg"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Set a Reminder</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Get notified with alarm at your chosen time</p>
+                </div>
+                <button onclick="closeReminderModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-5 space-y-4">
+                <!-- Reminder Label -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Reminder Note <span class="text-gray-400 font-normal">(optional)</span></label>
+                    <input type="text" id="reminder-label" placeholder="e.g. Call Amanda, Send proposal..." maxlength="80"
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <!-- Mode Toggle -->
+                <div class="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600">
+                    <button id="rem-mode-time-btn" onclick="setReminderMode('time')" class="flex-1 py-2 text-xs font-semibold transition-colors bg-indigo-600 text-white">
+                        <i class="fa-solid fa-clock mr-1"></i> Specific Time
+                    </button>
+                    <button id="rem-mode-after-btn" onclick="setReminderMode('after')" class="flex-1 py-2 text-xs font-semibold transition-colors text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <i class="fa-solid fa-hourglass-half mr-1"></i> After Duration
+                    </button>
+                </div>
+
+                <!-- Specific Time Panel -->
+                <div id="rem-panel-time">
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Choose Time</label>
+                    <input type="time" id="reminder-time-input"
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <p class="text-xs text-gray-400 mt-1">Reminder fires at this clock time today (or tomorrow if already passed)</p>
+                </div>
+
+                <!-- After Duration Panel -->
+                <div id="rem-panel-after" class="hidden">
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Remind me after</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="reminder-duration-val" placeholder="e.g. 30" min="1" max="999"
+                            class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <select id="reminder-duration-unit"
+                            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="minutes">Minutes</option>
+                            <option value="hours">Hours</option>
+                        </select>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">Reminder fires this many minutes/hours from now</p>
+                </div>
+
+                <!-- Error -->
+                <div id="reminder-error" class="hidden p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-300 text-xs flex items-center gap-2">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <span id="reminder-error-text"></span>
+                </div>
+            </div>
+
+            <!-- Active Reminders List -->
+            <div id="reminder-active-section" class="hidden px-5 pb-2">
+                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1">
+                    <i class="fa-solid fa-list-ul"></i> Active Reminders
+                </p>
+                <div id="reminder-active-list" class="space-y-1.5 max-h-32 overflow-y-auto"></div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex gap-3 p-5 border-t border-gray-200 dark:border-gray-700">
+                <button onclick="closeReminderModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">Cancel</button>
+                <button id="reminder-set-btn" onclick="scheduleReminder()" class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors text-sm font-semibold shadow-sm">
+                    <i class="fa-solid fa-bell mr-1"></i> Set Reminder
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Floating Rich Text Toolbar -->
     <div id="floating-toolbar" class="hidden absolute z-[80] bg-gray-900 border border-gray-700 shadow-xl rounded-lg px-2 py-1 flex gap-1 transition-opacity opacity-0 pointer-events-none transform -translate-x-1/2 -translate-y-full mt-[-8px]">
@@ -773,6 +863,183 @@
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> Update Password';
             }
+        }
+
+        // =============================================
+        // --- Custom Reminder Engine ---
+        // =============================================
+        let _reminders = []; // { id, label, fireAt (ms timestamp), timeoutId }
+        let _reminderMode = 'time'; // 'time' | 'after'
+
+        function openReminderModal() {
+            const modal = document.getElementById('reminder-modal');
+            const box = document.getElementById('reminder-box');
+            document.getElementById('reminder-label').value = '';
+            document.getElementById('reminder-error').classList.add('hidden');
+            document.getElementById('reminder-set-btn').disabled = false;
+            document.getElementById('reminder-set-btn').innerHTML = '<i class="fa-solid fa-bell mr-1"></i> Set Reminder';
+
+            // Default time input to 30 min from now
+            const soon = new Date(Date.now() + 30 * 60000);
+            document.getElementById('reminder-time-input').value =
+                soon.getHours().toString().padStart(2, '0') + ':' + soon.getMinutes().toString().padStart(2, '0');
+            document.getElementById('reminder-duration-val').value = '';
+            document.getElementById('reminder-duration-unit').value = 'minutes';
+
+            setReminderMode('time');
+            renderActiveReminders();
+
+            modal.classList.remove('hidden');
+            void modal.offsetWidth;
+            box.classList.remove('scale-95', 'opacity-0');
+            box.classList.add('scale-100', 'opacity-100');
+        }
+
+        function closeReminderModal() {
+            const modal = document.getElementById('reminder-modal');
+            const box = document.getElementById('reminder-box');
+            box.classList.remove('scale-100', 'opacity-100');
+            box.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 200);
+        }
+
+        function setReminderMode(mode) {
+            _reminderMode = mode;
+            const timePanel = document.getElementById('rem-panel-time');
+            const afterPanel = document.getElementById('rem-panel-after');
+            const timeBtn = document.getElementById('rem-mode-time-btn');
+            const afterBtn = document.getElementById('rem-mode-after-btn');
+            if (mode === 'time') {
+                timePanel.classList.remove('hidden');
+                afterPanel.classList.add('hidden');
+                timeBtn.className = 'flex-1 py-2 text-xs font-semibold transition-colors bg-indigo-600 text-white';
+                afterBtn.className = 'flex-1 py-2 text-xs font-semibold transition-colors text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700';
+            } else {
+                timePanel.classList.add('hidden');
+                afterPanel.classList.remove('hidden');
+                afterBtn.className = 'flex-1 py-2 text-xs font-semibold transition-colors bg-indigo-600 text-white';
+                timeBtn.className = 'flex-1 py-2 text-xs font-semibold transition-colors text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700';
+            }
+        }
+
+        function scheduleReminder() {
+            const errorBox = document.getElementById('reminder-error');
+            const errorText = document.getElementById('reminder-error-text');
+            const showErr = (msg) => { errorText.innerText = msg; errorBox.classList.remove('hidden'); };
+            errorBox.classList.add('hidden');
+
+            const label = document.getElementById('reminder-label').value.trim() || 'Reminder';
+            let fireAt;
+
+            if (_reminderMode === 'time') {
+                const timeVal = document.getElementById('reminder-time-input').value;
+                if (!timeVal) return showErr('Please pick a time.');
+                const [h, m] = timeVal.split(':').map(Number);
+                const target = new Date();
+                target.setHours(h, m, 0, 0);
+                // If time already passed today, schedule for tomorrow
+                if (target.getTime() <= Date.now()) target.setDate(target.getDate() + 1);
+                fireAt = target.getTime();
+            } else {
+                const val = parseInt(document.getElementById('reminder-duration-val').value, 10);
+                const unit = document.getElementById('reminder-duration-unit').value;
+                if (!val || val < 1) return showErr('Enter a valid duration (minimum 1).');
+                const ms = unit === 'hours' ? val * 3600000 : val * 60000;
+                fireAt = Date.now() + ms;
+            }
+
+            const id = generateId();
+            const delayMs = fireAt - Date.now();
+            const timeoutId = setTimeout(() => fireReminder(id), delayMs);
+
+            _reminders.push({ id, label, fireAt, timeoutId });
+            updateReminderBadge();
+            renderActiveReminders();
+
+            const fireDate = new Date(fireAt);
+            const timeLabel = fireDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            showToast(`🔔 Reminder set for ${timeLabel}`, 'info');
+
+            // Reset btn
+            document.getElementById('reminder-set-btn').disabled = false;
+            document.getElementById('reminder-set-btn').innerHTML = '<i class="fa-solid fa-bell mr-1"></i> Set Reminder';
+            document.getElementById('reminder-label').value = '';
+        }
+
+        function fireReminder(id) {
+            const rem = _reminders.find(r => r.id === id);
+            if (!rem) return;
+
+            // Remove from list
+            _reminders = _reminders.filter(r => r.id !== id);
+            updateReminderBadge();
+
+            const label = rem.label || 'Reminder';
+
+            // 1. Toast
+            showToast(`🔔 ${label}`, 'warning');
+
+            // 2. Browser notification
+            const notif = () => {
+                const n = new Notification('🔔 Swiftesk CRM Reminder', {
+                    body: label,
+                    tag: 'swiftesk-reminder-' + id,
+                    renotify: true
+                });
+                setTimeout(() => n.close(), 10000);
+            };
+            if (Notification.permission === 'granted') {
+                notif();
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then(p => { if (p === 'granted') notif(); });
+            }
+
+            // 3. Tick-tick alarm — 3 seconds
+            playTickAlarm(3000);
+        }
+
+        function cancelReminder(id) {
+            const rem = _reminders.find(r => r.id === id);
+            if (rem) clearTimeout(rem.timeoutId);
+            _reminders = _reminders.filter(r => r.id !== id);
+            updateReminderBadge();
+            renderActiveReminders();
+            showToast('Reminder cancelled', 'info');
+        }
+
+        function updateReminderBadge() {
+            const badge = document.getElementById('reminder-badge');
+            if (!badge) return;
+            if (_reminders.length > 0) {
+                badge.textContent = _reminders.length;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function renderActiveReminders() {
+            const section = document.getElementById('reminder-active-section');
+            const list = document.getElementById('reminder-active-list');
+            if (!section || !list) return;
+            if (_reminders.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+            section.classList.remove('hidden');
+            list.innerHTML = _reminders.map(r => {
+                const t = new Date(r.fireAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const d = new Date(r.fireAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
+                return `
+                <div class="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg px-3 py-1.5">
+                    <i class="fa-solid fa-bell text-indigo-500 text-xs"></i>
+                    <span class="flex-1 text-xs text-gray-700 dark:text-gray-200 truncate" title="${escapeHtml(r.label)}">${escapeHtml(r.label)}</span>
+                    <span class="text-[10px] text-gray-400 whitespace-nowrap">${d} ${t}</span>
+                    <button onclick="cancelReminder('${r.id}')" class="text-red-400 hover:text-red-600 ml-1" title="Cancel">
+                        <i class="fa-solid fa-xmark text-xs"></i>
+                    </button>
+                </div>`;
+            }).join('');
         }
 
         function togglePasswordVisibility() {
