@@ -232,8 +232,8 @@
                     <input type="file" id="import-file" class="hidden" accept=".json" onchange="importData(event)">
                 </label>
             </div>
-            <!-- Wipe All Data Button -->
-            <button onclick="requestWipeAllData()" class="flex items-center justify-center gap-2 w-full p-2 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors text-xs font-semibold" title="Permanently delete all CRM records">
+            <!-- Wipe All Data Button (hidden) -->
+            <button onclick="requestWipeAllData()" class="hidden flex items-center justify-center gap-2 w-full p-2 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors text-xs font-semibold" title="Permanently delete all CRM records">
                 <i class="fa-solid fa-trash-can"></i>
                 <span>Wipe All Data</span>
             </button>
@@ -1528,6 +1528,7 @@
         }
 
         async function saveModalData() {
+            const saveBtn = document.getElementById('modal-save-btn');
             const schema = FORM_SCHEMAS[currentModalView];
             let isValid = true;
             
@@ -1549,6 +1550,12 @@
             if (!isValid) {
                 showToast('Please fill all required fields.', 'error');
                 return;
+            }
+
+            // Immediately disable to prevent double-click / duplicate writes
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Saving...';
             }
 
             let itemData = currentEditingId 
@@ -1575,6 +1582,11 @@
                 showToast('Saved to Firestore successfully!', 'success');
             } catch (err) {
                 showToast('Failed to save to Firestore', 'error');
+                // Re-enable so user can retry
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Save';
+                }
             }
         }
 
@@ -1618,6 +1630,13 @@
 
         async function confirmDelete() {
             if (!itemToDelete) return;
+
+            // Immediately disable confirm button to prevent double-delete
+            const actionBtn = document.getElementById('confirm-action-btn');
+            if (actionBtn) {
+                actionBtn.disabled = true;
+                actionBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Deleting...';
+            }
             
             const { viewId, id } = itemToDelete;
             
@@ -1636,6 +1655,11 @@
                 showToast('Deleted from Firestore', 'info');
             } catch (err) {
                 showToast('Delete failed: ' + err.message, 'error');
+                // Re-enable so user can retry
+                if (actionBtn) {
+                    actionBtn.disabled = false;
+                    actionBtn.innerHTML = 'Delete';
+                }
             }
         }
 
