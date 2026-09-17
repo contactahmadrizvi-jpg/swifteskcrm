@@ -1116,7 +1116,8 @@
 
             COLLECTIONS.forEach(colName => {
                 const unsub = db.collection('users').doc(currentUser.uid).collection(colName)
-                    .onSnapshot(snapshot => {
+                    .onSnapshot({ includeMetadataChanges: true }, snapshot => {
+                        const isFromServer = !snapshot.metadata.fromCache;
                         const items = [];
                         snapshot.forEach(doc => {
                             items.push({ id: doc.id, ...doc.data() });
@@ -1132,15 +1133,16 @@
 
                         appData[colName] = items;
 
-                        // Track first-load: mark this collection as ready
-                        if (!_collectionsReady.has(colName)) {
+                        // Mark collection ready only once we have server-confirmed data
+                        // (prevents stale/empty Firestore cache from triggering navigate)
+                        if (!_collectionsReady.has(colName) && isFromServer) {
                             _collectionsReady.add(colName);
                             const loaded = _collectionsReady.size;
                             const total = COLLECTIONS.length;
                             const st = document.getElementById('data-loader-status');
                             if (st) st.innerText = `Loading data... (${loaded}/${total})`;
 
-                            // All collections received their first snapshot → show the app
+                            // All collections have server data → show the app
                             if (loaded === total && !_initialLoadDone) {
                                 _initialLoadDone = true;
                                 if (_loaderSafetyTimer) clearTimeout(_loaderSafetyTimer);
@@ -1148,8 +1150,11 @@
                                 renderNavigation();
                                 navigate(currentView || 'dashboard');
                             }
-                        } else {
-                            // Subsequent real-time updates — re-render the active view
+                        }
+
+                        // ALWAYS re-render the active view on every snapshot after load
+                        // This ensures navigating to ANY tab always shows up-to-date data
+                        if (_initialLoadDone) {
                             if (currentView === colName) {
                                 renderTableData(colName);
                             } else if (currentView === 'pipeline' && colName === 'leads') {
