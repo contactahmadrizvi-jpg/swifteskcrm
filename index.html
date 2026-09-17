@@ -237,8 +237,13 @@
                 <i class="fa-solid fa-trash-can"></i>
                 <span>Wipe All Data</span>
             </button>
+            <!-- Change Password Button -->
+            <button onclick="openChangePasswordModal()" class="flex items-center justify-center gap-2 w-full p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors text-xs font-semibold">
+                <i class="fa-solid fa-key"></i>
+                <span>Change Password</span>
+            </button>
             <!-- Logout Button -->
-            <button onclick="handleLogout()" class="flex items-center justify-center gap-2 w-full p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors text-xs font-semibold">
+            <button onclick="requestLogout()" class="flex items-center justify-center gap-2 w-full p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors text-xs font-semibold">
                 <i class="fa-solid fa-right-from-bracket"></i>
                 <span>Sign Out</span>
             </button>
@@ -412,6 +417,68 @@
             <div class="flex justify-end gap-3">
                 <button onclick="closeImportSummary()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors font-medium text-sm">
                     Got it, Open CRM
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="change-pwd-modal" class="fixed inset-0 z-[70] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" onclick="closeChangePasswordModal()"></div>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 relative z-10 transform scale-95 opacity-0 transition-all duration-200" id="change-pwd-box">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400 flex items-center justify-center">
+                    <i class="fa-solid fa-key"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Change Password</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Re-authenticate then set a new password</p>
+                </div>
+                <button onclick="closeChangePasswordModal()" class="ml-auto text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <!-- Error box -->
+            <div id="chpwd-error" class="hidden mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 text-sm flex items-start gap-2">
+                <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                <span id="chpwd-error-text"></span>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Current Password</label>
+                    <div class="relative">
+                        <input type="password" id="chpwd-current" placeholder="Enter current password"
+                            class="w-full px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <button type="button" onclick="toggleChPwdVis('chpwd-current','chpwd-icon1')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <i id="chpwd-icon1" class="fa-regular fa-eye text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">New Password</label>
+                    <div class="relative">
+                        <input type="password" id="chpwd-new" placeholder="Min. 6 characters"
+                            class="w-full px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <button type="button" onclick="toggleChPwdVis('chpwd-new','chpwd-icon2')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <i id="chpwd-icon2" class="fa-regular fa-eye text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Confirm New Password</label>
+                    <div class="relative">
+                        <input type="password" id="chpwd-confirm" placeholder="Repeat new password"
+                            class="w-full px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <button type="button" onclick="toggleChPwdVis('chpwd-confirm','chpwd-icon3')" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <i id="chpwd-icon3" class="fa-regular fa-eye text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeChangePasswordModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm">Cancel</button>
+                <button id="chpwd-submit-btn" onclick="submitChangePassword()" class="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors text-sm font-semibold shadow-sm">
+                    <i class="fa-solid fa-check mr-1"></i> Update Password
                 </button>
             </div>
         </div>
@@ -601,15 +668,110 @@
             }
         }
 
+        function requestLogout() {
+            const dialog = document.getElementById('confirm-dialog');
+            const box = document.getElementById('confirm-box');
+            document.getElementById('confirm-title').innerText = 'Sign Out?';
+            document.getElementById('confirm-msg').innerText = 'You will be signed out of Swiftesk CRM. Any unsynced changes may be lost.';
+            const actionBtn = document.getElementById('confirm-action-btn');
+            actionBtn.innerText = 'Yes, Sign Out';
+            actionBtn.className = 'px-4 py-2 bg-gray-700 hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-500 text-white rounded-lg transition-colors shadow-sm font-medium w-full';
+            actionBtn.disabled = false;
+            actionBtn.onclick = handleLogout;
+            dialog.classList.remove('hidden');
+            void dialog.offsetWidth;
+            box.classList.remove('scale-95', 'opacity-0');
+            box.classList.add('scale-100', 'opacity-100');
+        }
+
         async function handleLogout() {
+            closeConfirm();
             try {
                 if (auth) {
                     await auth.signOut();
-                    showToast("Signed out successfully", "info");
+                    showToast('Signed out successfully', 'info');
                 }
             } catch (err) {
-                console.error("Logout failed:", err);
-                showToast("Logout failed: " + err.message, "error");
+                console.error('Logout failed:', err);
+                showToast('Logout failed: ' + err.message, 'error');
+            }
+        }
+
+        // --- Change Password ---
+        function openChangePasswordModal() {
+            const modal = document.getElementById('change-pwd-modal');
+            const box = document.getElementById('change-pwd-box');
+            document.getElementById('chpwd-current').value = '';
+            document.getElementById('chpwd-new').value = '';
+            document.getElementById('chpwd-confirm').value = '';
+            document.getElementById('chpwd-error').classList.add('hidden');
+            const btn = document.getElementById('chpwd-submit-btn');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> Update Password';
+            modal.classList.remove('hidden');
+            void modal.offsetWidth;
+            box.classList.remove('scale-95', 'opacity-0');
+            box.classList.add('scale-100', 'opacity-100');
+        }
+
+        function closeChangePasswordModal() {
+            const modal = document.getElementById('change-pwd-modal');
+            const box = document.getElementById('change-pwd-box');
+            box.classList.remove('scale-100', 'opacity-100');
+            box.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 200);
+        }
+
+        function toggleChPwdVis(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fa-regular fa-eye-slash text-sm';
+            } else {
+                input.type = 'password';
+                icon.className = 'fa-regular fa-eye text-sm';
+            }
+        }
+
+        async function submitChangePassword() {
+            const currentPwd = document.getElementById('chpwd-current').value.trim();
+            const newPwd = document.getElementById('chpwd-new').value.trim();
+            const confirmPwd = document.getElementById('chpwd-confirm').value.trim();
+            const errorBox = document.getElementById('chpwd-error');
+            const errorText = document.getElementById('chpwd-error-text');
+            const btn = document.getElementById('chpwd-submit-btn');
+
+            const showErr = (msg) => {
+                errorText.innerText = msg;
+                errorBox.classList.remove('hidden');
+            };
+            errorBox.classList.add('hidden');
+
+            if (!currentPwd || !newPwd || !confirmPwd) return showErr('All fields are required.');
+            if (newPwd.length < 6) return showErr('New password must be at least 6 characters.');
+            if (newPwd !== confirmPwd) return showErr('New passwords do not match.');
+            if (newPwd === currentPwd) return showErr('New password must be different from current password.');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Updating...';
+
+            try {
+                const user = auth.currentUser;
+                const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPwd);
+                await user.reauthenticateWithCredential(credential);
+                await user.updatePassword(newPwd);
+                closeChangePasswordModal();
+                showToast('Password updated successfully!', 'success');
+            } catch (err) {
+                console.error('Change password failed:', err);
+                let msg = 'Failed to update password. Please try again.';
+                if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'Current password is incorrect.';
+                if (err.code === 'auth/weak-password') msg = 'New password is too weak. Use at least 6 characters.';
+                if (err.code === 'auth/requires-recent-login') msg = 'Session expired. Please sign out and sign back in first.';
+                showErr(msg);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> Update Password';
             }
         }
 
