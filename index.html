@@ -232,8 +232,13 @@
                     <input type="file" id="import-file" class="hidden" accept=".json" onchange="importData(event)">
                 </label>
             </div>
+            <!-- Wipe All Data Button -->
+            <button onclick="requestWipeAllData()" class="flex items-center justify-center gap-2 w-full p-2 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors text-xs font-semibold" title="Permanently delete all CRM records">
+                <i class="fa-solid fa-trash-can"></i>
+                <span>Wipe All Data</span>
+            </button>
             <!-- Logout Button -->
-            <button onclick="handleLogout()" class="flex items-center justify-center gap-2 w-full p-2 rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors text-xs font-semibold">
+            <button onclick="handleLogout()" class="flex items-center justify-center gap-2 w-full p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors text-xs font-semibold">
                 <i class="fa-solid fa-right-from-bracket"></i>
                 <span>Sign Out</span>
             </button>
@@ -1585,12 +1590,18 @@
             const dialog = document.getElementById('confirm-dialog');
             const box = document.getElementById('confirm-box');
             
+            document.getElementById('confirm-title').innerText = "Are you sure?";
+            document.getElementById('confirm-msg').innerText = "This action cannot be undone.";
+            const actionBtn = document.getElementById('confirm-action-btn');
+            actionBtn.innerText = "Delete";
+            actionBtn.className = "px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors shadow-sm font-medium w-full";
+            actionBtn.disabled = false;
+            actionBtn.onclick = confirmDelete;
+
             dialog.classList.remove('hidden');
             void dialog.offsetWidth;
             box.classList.remove('scale-95', 'opacity-0');
             box.classList.add('scale-100', 'opacity-100');
-            
-            document.getElementById('confirm-action-btn').onclick = confirmDelete;
         }
 
         function closeConfirm() {
@@ -1625,6 +1636,85 @@
                 showToast('Deleted from Firestore', 'info');
             } catch (err) {
                 showToast('Delete failed: ' + err.message, 'error');
+            }
+        }
+
+        // --- Wipe Out All Data Logic ---
+        function requestWipeAllData() {
+            const dialog = document.getElementById('confirm-dialog');
+            const box = document.getElementById('confirm-box');
+            
+            document.getElementById('confirm-title').innerText = "Wipe Out All Data?";
+            document.getElementById('confirm-msg').innerHTML = "<span class='text-red-600 font-semibold block mb-1'>⚠️ Extreme Caution:</span> This will permanently delete <b>ALL</b> leads, follow-ups, scripts, pricing, client notes, questions, and other records from Cloud Firestore and local storage. This action cannot be undone!";
+            
+            const actionBtn = document.getElementById('confirm-action-btn');
+            actionBtn.innerText = "Yes, Wipe Everything";
+            actionBtn.className = "px-4 py-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-lg transition-colors shadow-sm font-semibold w-full flex items-center justify-center gap-2";
+            actionBtn.disabled = false;
+            actionBtn.onclick = confirmWipeAllData;
+            
+            dialog.classList.remove('hidden');
+            void dialog.offsetWidth;
+            box.classList.remove('scale-95', 'opacity-0');
+            box.classList.add('scale-100', 'opacity-100');
+        }
+
+        async function confirmWipeAllData() {
+            const actionBtn = document.getElementById('confirm-action-btn');
+            actionBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Wiping...';
+            actionBtn.disabled = true;
+
+            showToast("Wiping out all CRM data from Firestore...", "info");
+
+            try {
+                // Delete from Cloud Firestore if authenticated
+                if (db && currentUser) {
+                    const userRef = db.collection('users').doc(currentUser.uid);
+                    for (const colName of COLLECTIONS) {
+                        try {
+                            const snapshot = await userRef.collection(colName).get();
+                            if (!snapshot.empty) {
+                                const docs = snapshot.docs;
+                                for (let i = 0; i < docs.length; i += 300) {
+                                    const batch = db.batch();
+                                    docs.slice(i, i + 300).forEach(doc => {
+                                        batch.delete(doc.ref);
+                                    });
+                                    await batch.commit();
+                                }
+                            }
+                        } catch (colErr) {
+                            console.warn(`Error wiping ${colName} from Firestore:`, colErr);
+                        }
+                    }
+                }
+
+                // Reset in-memory appData
+                COLLECTIONS.forEach(col => {
+                    appData[col] = [];
+                });
+
+                closeConfirm();
+                showToast("All CRM data wiped out successfully in seconds!", "success");
+
+                // Reset button text
+                actionBtn.innerText = "Delete";
+                actionBtn.disabled = false;
+
+                // Re-render UI
+                if (currentView === 'dashboard') {
+                    renderDashboard();
+                } else if (currentView === 'pipeline') {
+                    renderPipeline();
+                } else {
+                    renderTableData(currentView);
+                }
+            } catch (err) {
+                console.error("Wipe failed:", err);
+                closeConfirm();
+                showToast("Wipe failed: " + err.message, "error");
+                actionBtn.innerText = "Delete";
+                actionBtn.disabled = false;
             }
         }
 
