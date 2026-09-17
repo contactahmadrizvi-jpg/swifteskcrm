@@ -705,6 +705,14 @@
                 .replace(/&lt;\/div&gt;/gi, "</div>");
         };
 
+        // Strip all HTML tags and return plain text (handles browser-injected attrs too)
+        const stripHtml = (html) => {
+            if (typeof html !== 'string') return '';
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            return (tmp.textContent || tmp.innerText || '').trim();
+        };
+
         // --- Authentication Logic ---
         function setupAuthObserver() {
             if (!auth) {
@@ -1116,8 +1124,7 @@
 
             COLLECTIONS.forEach(colName => {
                 const unsub = db.collection('users').doc(currentUser.uid).collection(colName)
-                    .onSnapshot({ includeMetadataChanges: true }, snapshot => {
-                        const isFromServer = !snapshot.metadata.fromCache;
+                    .onSnapshot(snapshot => {
                         const items = [];
                         snapshot.forEach(doc => {
                             items.push({ id: doc.id, ...doc.data() });
@@ -1133,16 +1140,15 @@
 
                         appData[colName] = items;
 
-                        // Mark collection ready only once we have server-confirmed data
-                        // (prevents stale/empty Firestore cache from triggering navigate)
-                        if (!_collectionsReady.has(colName) && isFromServer) {
+                        // Mark collection ready on first snapshot (cache or server)
+                        if (!_collectionsReady.has(colName)) {
                             _collectionsReady.add(colName);
                             const loaded = _collectionsReady.size;
                             const total = COLLECTIONS.length;
                             const st = document.getElementById('data-loader-status');
                             if (st) st.innerText = `Loading data... (${loaded}/${total})`;
 
-                            // All collections have server data → show the app
+                            // All collections have data → show the app
                             if (loaded === total && !_initialLoadDone) {
                                 _initialLoadDone = true;
                                 if (_loaderSafetyTimer) clearTimeout(_loaderSafetyTimer);
@@ -1543,7 +1549,7 @@
                     </div>
                     <div class="flex-1">
                         <div class="flex justify-between items-start">
-                            <h5 class="font-medium text-gray-900 dark:text-white text-sm">${escapeHtml(f.notes || 'Follow up')}</h5>
+                            <h5 class="font-medium text-gray-900 dark:text-white text-sm">${escapeHtml(stripHtml(f.notes || 'Follow up'))}</h5>
                             <span class="text-xs whitespace-nowrap ${isOverdue ? 'text-red-600 font-semibold' : 'text-gray-500'}">${formatDate(f.date)} ${f.time||''}</span>
                         </div>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">With: ${lead ? escapeHtml(lead.name) : 'Unknown'}</p>
