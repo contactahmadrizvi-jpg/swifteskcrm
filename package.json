@@ -1,0 +1,8 @@
+{
+  "name": "swiftesk-crm",
+  "version": "1.0.0",
+  "description": "Swiftesk CRM with Firebase real-time sync",
+  "scripts": {
+    "build": "node build.js"
+  }
+}
